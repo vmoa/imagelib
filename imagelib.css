@@ -110,7 +110,7 @@ div.tag_centered {
 
 /* The preview modal */
 /* cobbled from https://www.w3schools.com/howto/tryit.asp?filename=tryhow_css_preview */
-.preview {
+.preview-container {
   display: none; /* Hidden by default */
   position: fixed; /* Stay in place */
   z-index: 1; /* Sit on top */
@@ -122,6 +122,14 @@ div.tag_centered {
   overflow: auto; /* Enable scroll if needed */
   background-color: rgb(0,0,0); /* Fallback color */
   background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+}
+
+.preview-window {
+  position: relative;
+  left: 10%;
+  top: 10%;
+  width: 80%;
+  height: 80%;
 }
 
 .preview-header {
@@ -143,6 +151,10 @@ div.tag_centered {
   border: 1px solid #888;
   width: 80%;
   text-align: center;
+}
+
+.preview-img {
+    object-fit: contain;
 }
 
 /* The Close Button */

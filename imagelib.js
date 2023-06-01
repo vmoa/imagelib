@@ -46,10 +46,14 @@ function basename(path) {
 
 function preview(el) {
     console.log("preview("+el+")");
-    image = document.getElementById(el+'img');
+    var image = document.getElementById(el+'img');
+    var previewWindow = document.getElementById("preview-window");
+    var previewImg = document.getElementById("preview-img");
+    previewImg.src = image.src;
+    previewImg.maxWidth = previewWindow.clientWidth;
+    previewImg.maxHeight = previewWindow.clientHeight;
     document.getElementById('preview-filename').innerHTML = basename(image.src);
-    document.getElementById("preview-img").src = image.src;
-    document.getElementById("preview").style.display = "block";
+    document.getElementById("preview-container").style.display = "block";
 }
 
 function closePreview() {
