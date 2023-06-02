@@ -57,5 +57,5 @@ function preview(el) {
 }
 
 function closePreview() {
-    document.getElementById("preview").style.display = "none";
+    document.getElementById("preview-container").style.display = "none";
 }

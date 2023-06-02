@@ -144,16 +144,19 @@ div.tag_centered {
 }
 
 .preview-content {
-  background-color: #fefefe;
+  background-color: #545353;
   margin: auto;
   padding: 2px;
   height: 54px;
   border: 1px solid #888;
   width: 80%;
+  height: 80%;
   text-align: center;
 }
 
 .preview-img {
+    width: 100%;
+    height: 100%;
     object-fit: contain;
 }
 
