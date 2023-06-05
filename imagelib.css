@@ -42,6 +42,7 @@ div.title_bar {
     display: inline-block;
     margin: 0;
     padding: 0;
+    width: 100%;
     background-color: #4287f5;
 	padding-bottom: 10px;
 	border-width: 5px;
@@ -56,7 +57,12 @@ div.collection_title {
     padding: 3px;
     text-align: left;
     color: #243a63;
-    font-size: 16px;
+    font-size: 18px;
+}
+
+.collection_title_title {
+    color: #d9c129;
+    font-size: 24px;
 }
 
 .button {
