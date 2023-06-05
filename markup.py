@@ -20,6 +20,7 @@ django.setup()
 
 
 collections = {
+    'title': 'RFO Image Library Thingy',
     'collections': [
         {
             'id': 'pic',

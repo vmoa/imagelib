@@ -23,15 +23,22 @@ html, body {
     background-color: #60B3B3;
 }
 
-div.title_bar {
-    height: 18px;
+div.page_title_bar {
+    height: 26px;
     line-height: 18px;
     border: 0px;
-    padding: 1px;
+    padding-top: 8px;
+    padding-left: 8px;
+    padding-right: 8px;
     background-color: #B3B3FF;
-    text-align: center;
+    text-align: left;
     color: #0B00FF;
-    font-size: 16px;
+    font-size: 18px;
+}
+
+.page_title_title {
+    color: #4287f5;
+    font-size: 24px;
 }
 
 /*
@@ -55,6 +62,7 @@ div.collection_title {
     line-height: 18px;
     border: 0px;
     padding: 3px;
+    padding-right: 15px;
     text-align: left;
     color: #243a63;
     font-size: 18px;

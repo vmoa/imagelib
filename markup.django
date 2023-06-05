@@ -10,8 +10,8 @@
 
         <div class="container" id="container">
 
-            <div class="title_bar" id="title_bar">
-                <span>{{ title }}</span>
+            <div class="page_title_bar" id="page_title_bar">
+                <span class="page_title_title">{{ title }}</span>
                 <span class="right"><a href='/' alt='Home'>[Home]</a></span>
             </div>
 
