@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>{{ title }}</title>
+        <link rel="stylesheet" href="imagelib.css" type="text/css" />
+        <script type="text/javascript" src="imagelib.js"></script>
+    </head>
+
+    <body>
+
+        <div class="container" id="container">
+
+            <div class="title_bar" id="title_bar">
+                <span>{{ title }}</span>
+                <span class="right"><a href='/' alt='Home'>[Home]</a></span>
+            </div>
+
+            {% for collection in collections %}
+            <div class="collection" id="{{ collection.id }}">
+
+                <div class="collection_title" id="{{ collection.id }}_title">
+                    <span class="collection_title_title">{{ collection.title }}</span>
+                    <span class="right">Select
+                        <span class="button" onClick="selectMulti('{{ collection.prefix }}',1)">[All]</span>
+                        <span class="button" onClick="selectMulti('{{ collection.prefix }}',0)">[None]</span>
+                        <span class="button" onClick="selectMulti('{{ collection.prefix }}',-1)">[Toggle]</span>
+                    </span>
+                </div>
+
+                {% for pic in collection.pics %}
+                <div class="thumb" id="{{ pic.id }}">
+                    <div class="thumbpic" id="{{ pic.id }}pic"><img class="thumbimg" id='{{ pic.id }}img' onClick="preview('{{ pic.id }}')" src="{{ pic.src }}"></div>
+                    <div class="thumbtag" id="{{ pic.id }}tag" onClick="toggle('{{ pic.id }}')">{{ pic.title }}</div>
+                </div>
+                {% endfor %}
+
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Preview modal (js will hide/unhide) -->
+        <div class="preview-container" id="preview-container"> 
+            <div class="preview-window" id="preview-window">
+                <div class="preview-header" id="preview-header">
+                    <span class="left" id="preview-filename">Name coming soon</span>
+                    <span class="right"><span class="button" onClick="closePreview()">&times;</span></span>
+                </div>
+                <div class="preview-content" id="preview-content">
+                    <img class="preview-img" id="preview-img" src="comingsoon.png">
+                </div>
+                <div class="preview-header" id="preview-footer">
+                    <span class="left"><span class="button" onClick="closePreview()">[Close]</span></span>
+                    <span class="right"><span class="button" id="preview-select" onClick="TBD()">[Toggle Select]</span></span>
+                </div>
+            </div>
+        </div>
+
+    </body>
+</html>
