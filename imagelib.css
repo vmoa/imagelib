@@ -50,9 +50,13 @@ div.page_title_bar {
     margin: 0;
     padding: 0;
     width: 100%;
+    overflow: auto;
     background-color: #4287f5;
 	padding-bottom: 10px;
 	border-width: 5px;
+	border-left-width: 8px;
+	border-right-width: 8px;
+	border-bottom-width: 5px;
 	border-style: solid;
     border-color: #B3B3FF;
 }
