@@ -1,3 +1,6 @@
+import os
+import re
+import sys
 
 # https://stackoverflow.com/questions/98135/how-do-i-use-django-templates-without-the-rest-of-django
 
@@ -16,9 +19,7 @@ settings.configure(TEMPLATES=[
 import django
 django.setup()
 
-# t = Template('My name is {{ my_name }}.')
-
-
+# Build static context dictionary; this should be done by walking directory tree
 collections = {
     'title': 'RFO Image Library Thingy',
     'collections': [
@@ -118,7 +119,115 @@ collections = {
     ],
 }
 
+def fetchFits(path):
+    '''Descend into `path` and build a database (dictionary for now) of all our FITS images.'''
+    pass
+
+ngc_catalog = {
+    'NGC 1952': 'M1',
+    'NGC 5457': 'M101',
+}
+
+class Image:
+   def __init__(self):
+        pass 
+
+def parseFilename(filename):
+    '''Parse `filename` and populate `image` with the deets.'''
+    image = {}
+    name = []
+
+    # First let's strip the .fits
+    filename = os.path.splitext(filename)[0]
+    fn_re = re.compile(' +')
+    fn = fn_re.split(filename)
+
+    # Work through filename components and see what matches; 
+    # What we have left should be the target name
+    #for x in range(len(fn)-1, 0, -1):
+    for thang in fn:
+
+        sequence_re = re.compile('^\d{8}$')
+        if (sequence_re.fullmatch(thang)):
+            continue
+
+        exposure_re = re.compile('^([\d\.]+)secs$')
+        m = exposure_re.search(thang)
+        if (m):
+            image["exposure"] = m.group(0)
+            continue
+
+        binning_re = re.compile('^(\dx\d)$')
+        m = binning_re.fullmatch(thang)
+        if (m):
+            image["binning"] = m.group(0)
+            continue
+
+        filter_re = re.compile('^(LUMEN|B|V|R|I|RED|GREEN|BLUE|HA)$')
+        m = filter_re.fullmatch(thang)
+        if (m):
+            image["filter"] = m.group(0)
+            continue
+
+        datestr_re = re.compile('^(\d{4}-\d{2}-\d{2})$')
+        m = datestr_re.fullmatch(thang)
+        if (m):
+            image["fndate"] = m.group(0)
+            continue
+
+        # Anything left becomes object name
+        name.append(thang)
+
+    # Now assemble the name
+    target = ' '.join(name)
+    if (target in ngc_catalog):
+        image["target"] = ngc_catalog[target]
+        image["altname"] = target
+    else:
+        image["target"] = target
+
+    #print(image)
+    return(image)
+
+def findNewFits(path):
+    '''Find new FITS files since last time we were run.  Runs the `find` system command on `path` to
+       locate *.fits and diff against the previously cached find output.'''
+    cache_dir = '.'
+    ts_file = cache_dir + '/.last_run'
+    if (os.path.exists(ts_file)):
+        newer_arg = '-newer ' + ts_file
+    else:
+        newer_arg = '';
+
+    find_cmd = "find {} {} -name '*\.fits'".format(path, newer_arg)
+    print("DEBUG: " + find_cmd)
+    with os.popen(find_cmd) as find_out:
+        for fullpath in find_out:
+            fullpath = fullpath.rstrip()
+            path = fullpath.split('/')
+            filename = path.pop()
+            datestr = path.pop()
+
+            # We're only interested in folders that are dates
+            datestr_re = re.compile("(\d{4}-\d{2}-\d{2})");
+            m = datestr_re.search(datestr)
+            if (m):
+                image = parseFilename(filename)
+                image["date"] = m.group(0)
+                image["path"] = fullpath
+
+                print("\nPath: {}".format(fullpath))
+                print('  ', image)
+
+# thuban:imagelib dlk$ find fits -name '*\.fits'
+# fits/Eagle/SkyX/Images/ 2023-05-20/NGC 5457 2023-05-20 LUMEN 2x2 60.000secs 00005177.fits
+# fits/Eagle/SkyX/Images/ 2023-05-20/NGC 5457 2023-05-20 LUMEN 2x2 90.000secs 00005171.fits
+
+findNewFits('fits')
+sys.exit()
+
+    
+
 t = get_template('markup.django')
-#c = Context(collections)
 print(t.render(collections))
 
