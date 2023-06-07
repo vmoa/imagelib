@@ -133,7 +133,7 @@ class Image:
         pass 
 
 def parseFilename(filename):
-    '''Parse `filename` and populate `image` with the deets.'''
+    '''Parse `filename` and return a dictionary with the deets.'''
     image = {}
     name = []
 
@@ -142,9 +142,8 @@ def parseFilename(filename):
     fn_re = re.compile(' +')
     fn = fn_re.split(filename)
 
-    # Work through filename components and see what matches; 
-    # What we have left should be the target name
-    #for x in range(len(fn)-1, 0, -1):
+    # Work through filename components and see what matches
+    # What doesn't match should be part of the target name
     for thang in fn:
 
         sequence_re = re.compile('^\d{8}$')
@@ -175,7 +174,7 @@ def parseFilename(filename):
             image["fndate"] = m.group(0)
             continue
 
-        # Anything left becomes object name
+        # Anything left becomes target name
         name.append(thang)
 
     # Now assemble the name
@@ -191,7 +190,8 @@ def parseFilename(filename):
 
 def findNewFits(path):
     '''Find new FITS files since last time we were run.  Runs the `find` system command on `path` to
-       locate *.fits and diff against the previously cached find output.'''
+       locate *.fits newer than `ts_file`.
+       TBD: Stash the results in a list and build indexes into the list.```
     cache_dir = '.'
     ts_file = cache_dir + '/.last_run'
     if (os.path.exists(ts_file)):
