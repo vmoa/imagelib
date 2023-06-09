@@ -146,8 +146,8 @@ def parseFilename(filename):
     # What doesn't match should be part of the target name
     for thang in fn:
 
-        sequence_re = re.compile('^\d{8}$')
-        if (sequence_re.fullmatch(thang)):
+        sequence_re = re.compile('^\d{8}')  # Catches 00000000NoAutoDark, which is probably broken anyway
+        if (sequence_re.match(thang)):
             continue
 
         exposure_re = re.compile('^([\d\.]+)secs$')
@@ -188,10 +188,14 @@ def parseFilename(filename):
     #print(image)
     return(image)
 
+imagedb = list()
+name_ndx = dict()
+date_ndx = dict()
+
 def findNewFits(path):
     '''Find new FITS files since last time we were run.  Runs the `find` system command on `path` to
        locate *.fits newer than `ts_file`.
-       TBD: Stash the results in a list and build indexes into the list.```
+       TBD: Stash the results in a list and build indexes into the list.'''
     cache_dir = '.'
     ts_file = cache_dir + '/.last_run'
     if (os.path.exists(ts_file)):
@@ -215,15 +219,40 @@ def findNewFits(path):
                 image = parseFilename(filename)
                 image["date"] = m.group(0)
                 image["path"] = fullpath
-
                 print("\nPath: {}".format(fullpath))
                 print('  ', image)
+                dbstash(image)
+
+def dbstash(image):
+    '''Stash `image` into imagedb and build appropriate indexes.'''
+    imagedb.append(image)
+    ndx = len(imagedb) - 1
+
+    # Create / append indexes
+    if (image['date'] not in date_ndx):
+        print("Initializing date_ndx[{}]".format(image['date']))
+        date_ndx[image['date']] = list()
+    date_ndx[image['date']].append(ndx)
+
+    if (image['target'] not in name_ndx):
+        print("Initializing name_ndx[{}]".format(image['target']))
+        name_ndx[image['target']] = list()
+    name_ndx[image['target']].append(ndx)
+
+    if ('altname' in image):
+        if (image['altname'] not in name_ndx):
+            print("Initializing name_ndx[{}]".format(image['altname']))
+            name_ndx[image['altname']] = list()
+        name_ndx[image['altname']].append(ndx)
+
 
 # thuban:imagelib dlk$ find fits -name '*\.fits'
 # fits/Eagle/SkyX/Images/ 2023-05-20/NGC 5457 2023-05-20 LUMEN 2x2 60.000secs 00005177.fits
 # fits/Eagle/SkyX/Images/ 2023-05-20/NGC 5457 2023-05-20 LUMEN 2x2 90.000secs 00005171.fits
 
 findNewFits('fits')
+print("\nname_ndx = ", name_ndx)
+print("\ndate_ndx = ", date_ndx)
 sys.exit()
 
     
