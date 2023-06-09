@@ -221,29 +221,43 @@ def findNewFits(path):
                 image["path"] = fullpath
                 print("\nPath: {}".format(fullpath))
                 print('  ', image)
+                fits2png(image)
                 dbstash(image)
+
+def fits2png(image):
+    pass
 
 def dbstash(image):
     '''Stash `image` into imagedb and build appropriate indexes.'''
     imagedb.append(image)
-    ndx = len(imagedb) - 1
+    ndx = len(imagedb) - 1  # This is the primary key for indexes
 
-    # Create / append indexes
-    if (image['date'] not in date_ndx):
-        print("Initializing date_ndx[{}]".format(image['date']))
-        date_ndx[image['date']] = list()
-    date_ndx[image['date']].append(ndx)
-
-    if (image['target'] not in name_ndx):
-        print("Initializing name_ndx[{}]".format(image['target']))
-        name_ndx[image['target']] = list()
-    name_ndx[image['target']].append(ndx)
-
+    # Collect some shorthands to make indexing code more redable
+    date = image['date']
+    names = list()
+    names.append(image['target'])
     if ('altname' in image):
-        if (image['altname'] not in name_ndx):
-            print("Initializing name_ndx[{}]".format(image['altname']))
-            name_ndx[image['altname']] = list()
-        name_ndx[image['altname']].append(ndx)
+        names.append(image['altname'])
+
+    # Build date_ndx[date][name] = list of image ndx's
+    if (date not in date_ndx):
+        print("Initializing date_ndx[{}]".format(date))
+        date_ndx[date] = dict()
+    for name in names:
+        if (name not in date_ndx[date]):
+            print("Initializing date_ndx[{}][{}]".format(date,name))
+            date_ndx[date][name] = list()
+        date_ndx[date][name].append(ndx)
+
+    # Build name_ndx[name][date] = list of image ndx's
+    for name in names:
+        if (name not in name_ndx):
+            print("Initializing name_ndx[{}]".format(name))
+            name_ndx[name] = dict()
+        if (date not in name_ndx[name]):
+            print("Initializing name_ndx[{}][{}]".format(name,date))
+            name_ndx[name][date] = list()
+        name_ndx[name][date].append(ndx)
 
 
 # thuban:imagelib dlk$ find fits -name '*\.fits'
