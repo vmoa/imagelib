@@ -220,12 +220,24 @@ def findNewFits(path):
                 image["date"] = m.group(0)
                 image["path"] = fullpath
                 print("\nPath: {}".format(fullpath))
-                print('  ', image)
-                fits2png(image)
+                (p,t) = fits2png(image)
+                image['preveiw'] = p
+                image['thumbnail'] = t
                 dbstash(image)
+                print('  ', image)
 
 def fits2png(image):
-    pass
+    preview = image["path"][:-5] + '.png'
+    cmd = 'fitspng -o \"{}\" \"{}\"'.format(preview, image["path"])
+    print("DEBUG>> "+cmd)
+    os.system(cmd)
+
+    thumb = image["path"][:-5] + '-thumb.png'
+    cmd = 'fitspng -s 17 -o \"{}\" \"{}\"'.format(thumb, image["path"])
+    print("DEBUG>> "+cmd)
+    os.system(cmd)
+
+    return(preview, thumb)
 
 def dbstash(image):
     '''Stash `image` into imagedb and build appropriate indexes.'''
