@@ -1,3 +1,5 @@
+
+import json
 import os
 import re
 import sys
@@ -276,7 +278,19 @@ def dbstash(image):
 # fits/Eagle/SkyX/Images/ 2023-05-20/NGC 5457 2023-05-20 LUMEN 2x2 60.000secs 00005177.fits
 # fits/Eagle/SkyX/Images/ 2023-05-20/NGC 5457 2023-05-20 LUMEN 2x2 90.000secs 00005171.fits
 
+def loadOldDb():
+    pass
+
+def saveNewDb():
+    print(json.dumps(imagedb, indent=4))
+    print(json.dumps(date_ndx, indent=4))
+    print(json.dumps(name_ndx, indent=4))
+    pass
+
+loadOldDb()
 findNewFits('fits')
+saveNewDb()
+
 print("\nname_ndx = ", name_ndx)
 print("\ndate_ndx = ", date_ndx)
 sys.exit()
