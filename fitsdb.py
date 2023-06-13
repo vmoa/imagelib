@@ -45,6 +45,7 @@ if (__name__ == "__main__"):
 
     if (command == 'create'):
 
+	# Intentionally fail if table exists
         db.cur.execute('''
             CREATE TABLE fits (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -60,8 +61,9 @@ if (__name__ == "__main__"):
             )
         ''')
 
-        db.cur.execute("CREATE INDEX fits-date-name ON fits (date, target)")
-        db.cur.execute("CREATE INDEX fits-name-date ON fits (target, date)")
+        db.cur.execute("CREATE UNIQUE INDEX fits_path_index ON fits (path)")
+        db.cur.execute("CREATE INDEX fits_date_name_index ON fits (date, target)")
+        db.cur.execute("CREATE INDEX fits_name_date_index ON fits (target, date)")
         db.con.commit()
 
     if (command == 'status'):
