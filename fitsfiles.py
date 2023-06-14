@@ -7,6 +7,8 @@ import os
 import re
 import sys
 
+import fitsdb
+
 # thuban:imagelib dlk$ find fits -name '*\.fits'
 # fits/Eagle/SkyX/Images/ 2023-05-20/NGC 5457 2023-05-20 LUMEN 2x2 60.000secs 00005177.fits
 # fits/Eagle/SkyX/Images/ 2023-05-20/NGC 5457 2023-05-20 LUMEN 2x2 90.000secs 00005171.fits
@@ -16,6 +18,8 @@ class FitsFiles:
 	imagedb = list()
 	name_ndx = dict()
 	date_ndx = dict()
+
+	forcepng = False
 
 	# Build this from file?
 	ngc_catalog = {
@@ -77,8 +81,8 @@ class FitsFiles:
 
 		# Now assemble the name
 		target = ' '.join(name)
-		if (target in ngc_catalog):
-			image["target"] = ngc_catalog[target]
+		if (target in self.ngc_catalog):
+			image["target"] = self.ngc_catalog[target]
 			image["altname"] = target
 		else:
 			image["target"] = target
@@ -86,7 +90,21 @@ class FitsFiles:
 		#print(image)
 		return(image)
 
-	def findNewFits(self, path):
+	def fits2png(self, image):
+		'''Generate png preview and thumbnail images.'''
+		preview = image["path"][:-5] + '.png'
+		if (self.forcepng or not os.path.exists(preview)):
+			cmd = 'fitspng -o \"{}\" \"{}\"'.format(preview, image["path"])
+			os.system(cmd)
+
+		thumb = image["path"][:-5] + '-thumb.png'
+		if (self.forcepng or not os.path.exists(thumb)):
+			cmd = 'fitspng -s 17 -o \"{}\" \"{}\"'.format(thumb, image["path"])
+			os.system(cmd)
+
+		return(preview, thumb)
+
+	def findNewFits(self, path, fitsdb):
 		'''Find new FITS files since last time we were run.  Runs the `find` system command on `path` to
 		   locate *.fits newer than `ts_file`.
 		   TBD: Stash the results in a list and build indexes into the list.'''
@@ -110,28 +128,16 @@ class FitsFiles:
 				datestr_re = re.compile("(\d{4}-\d{2}-\d{2})");
 				m = datestr_re.search(datestr)
 				if (m):
-					image = parseFilename(filename)
+					image = self.parseFilename(filename)
 					image["date"] = m.group(0)
 					image["path"] = fullpath
 					print("\nPath: {}".format(fullpath))
-					(p,t) = fits2png(image)
+					(p,t) = self.fits2png(image)
 					image['preveiw'] = p
 					image['thumbnail'] = t
-					dbstash(image)
+					#dbstash(image)
+					fitsdb.insert(image)
 					print('  ', image)
-
-	def fits2png(self, image):
-		preview = image["path"][:-5] + '.png'
-		cmd = 'fitspng -o \"{}\" \"{}\"'.format(preview, image["path"])
-		print("DEBUG>> "+cmd)
-		os.system(cmd)
-
-		thumb = image["path"][:-5] + '-thumb.png'
-		cmd = 'fitspng -s 17 -o \"{}\" \"{}\"'.format(thumb, image["path"])
-		print("DEBUG>> "+cmd)
-		os.system(cmd)
-
-		return(preview, thumb)
 
 	def dbstash(self, image):
 		'''Stash `image` into imagedb and build appropriate indexes.'''
@@ -176,9 +182,9 @@ class FitsFiles:
 
 if (__name__ == "__main__"):
 
-	loadOldDb()
-	findNewFits('fits')
-	saveNewDb()
+	fitsfiles = FitsFiles()
+	fitsdb = fitsdb.Fitsdb()
+	fitsfiles.findNewFits('fits', fitsdb)
 
 	print("\nname_ndx = ", name_ndx)
 	print("\ndate_ndx = ", date_ndx)
