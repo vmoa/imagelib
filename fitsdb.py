@@ -23,16 +23,18 @@ class Fitsdb:
     def insert(self, image):
         cols = list()
         vals = list()
-        for c,v in image:
+        qmarks = list()
+        for c,v in image.items():
             cols.append(c)
             vals.append(v)
+            qmarks.append('?')
 
-        for x in vals:
-            questionmarks += '?,'
-        questionmarks = questionmarks[:-1]  # drop the trailing comma
+        questionmarks = ', '.join(qmarks)
 
-        sql = 'insert into fits ( {} ) values ( {} )'.format(','.join(cols), questionmarks)
-        self.cur.executemany(sql, vals)
+        sql = 'insert into fits ({}) values ({})'.format(', '.join(cols), questionmarks)
+        print(sql, "\n>> ", vals, "\n")
+        self.cur.execute(sql, vals)
+        self.con.commit()
 
 # Stand-alone adminy stuff
 if (__name__ == "__main__"):
@@ -45,7 +47,7 @@ if (__name__ == "__main__"):
 
     if (command == 'create'):
 
-	# Intentionally fail if table exists
+    # Intentionally fail if table exists
         db.cur.execute('''
             CREATE TABLE fits (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -54,6 +56,7 @@ if (__name__ == "__main__"):
                 binning TEXT,
                 exposure TEXT,
                 target TEXT,
+                altname TEXT,
                 date TEXT,
                 path TEXT,
                 preveiw TEXT,
