@@ -21,6 +21,7 @@ class Fitsdb:
         self.con.commit()
 
     def insert(self, image):
+        '''Insert image (dictionary) into the database.'''
         cols = list()
         vals = list()
         qmarks = list()
@@ -68,8 +69,23 @@ if (__name__ == "__main__"):
         db.cur.execute("CREATE INDEX fits_date_name_index ON fits (date, target)")
         db.cur.execute("CREATE INDEX fits_name_date_index ON fits (target, date)")
         db.con.commit()
+        db.con.close()
 
     if (command == 'status'):
-        print("Yeah, sorry... not implemented yet")
+        total_rows = db.cur.execute("select count(*) from fits").fetchone()[0]
+        targets = db.cur.execute("select distinct(target), count(*) from fits GROUP by target order by 2 desc, 1 asc").fetchall()
+        dates = db.cur.execute("select distinct(date), count(*) from fits GROUP by date order by 2 desc, 1 asc").fetchall()
+        db.con.close()
 
-    db.con.close()
+        print("Database Status:\n  Total images: {}".format(total_rows))
+
+        t = list()
+        for row in targets:
+            t.append("{}({})".format(row[0], row[1]))
+        print("  Targets: {} --> {}".format(len(targets), ', '.join(t)))
+
+        t = list()
+        for row in dates:
+            t.append("{}({})".format(row[0], row[1]))
+        print("  Dates: {} --> {}".format(len(dates), ', '.join(t)))
+
