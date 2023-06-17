@@ -8,21 +8,13 @@ import re
 import sys
 
 # https://stackoverflow.com/questions/98135/how-do-i-use-django-templates-without-the-rest-of-django
-
 from django.template import Template, Context
 from django.template.loader import get_template
 from django.conf import settings
-
-settings.configure(TEMPLATES=[
-    {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': ['.'], # if you want the templates from a file
-        'APP_DIRS': False, # we have no apps
-    },
-])
-
 import django
-django.setup()
+
+import fitsdb
+
 
 # Build static context dictionary; this should be done by walking directory tree
 collections = {
@@ -124,6 +116,27 @@ collections = {
     ],
 }
 
-t = get_template('markup.django')
-print(t.render(collections))
+
+class Markup:
+
+    def __init__(self):
+
+        django.conf.settings.configure(TEMPLATES=[
+            {
+                'BACKEND': 'django.template.backends.django.DjangoTemplates',
+                'DIRS': ['.'], # if you want the templates from a file
+                'APP_DIRS': False, # we have no apps
+            },
+        ])
+
+        django.setup()
+
+
+
+if (__name__ == "__main__"):
+
+    markup = Markup()
+
+    t = django.template.loader.get_template('markup.django')
+    print(t.render(collections))
 
