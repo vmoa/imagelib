@@ -137,6 +137,63 @@ if (__name__ == "__main__"):
 
     markup = Markup()
 
+    db = fitsdb.Fitsdb()
+
+    dates = list()
+    rows = db.cur.execute("select distinct(date) from fits order by date desc").fetchall()
+    for row in rows:
+        dates.append(row[0])
+
+    images = dict()
+    images["title"] = "RFO Image Library: All"
+    images["collections"] = list()
+
+    for date in dates:
+
+        collection = dict()
+        prefix = "rfo_{}".format(date)
+        collection["id"] = prefix
+        collection["prefix"] = prefix
+        collection["title"] = date
+        collection["pics"] = list()
+
+        sequence = 0
+        rows = db.cur.execute("select target, altname, thumbnail, preview from fits where date = '{}' order by id".format(date)).fetchall()
+        for row in rows:
+            target, altname, thumbnail, preview = row
+            sequence += 1
+            pic = dict()
+            pic["id"] = "{}_{:03d}".format(prefix, sequence)
+            pic["title"] = target
+            if (altname):
+                pic["title"] += " ({})".format(altname)
+            pic["src"] = thumbnail
+            pic["preview"] = preview  # Not used cuz I couln't figure out how to sneak it in
+            collection["pics"].append(pic)
+
+        images["collections"].append(collection)
+
+    # print(json.dumps(images, indent=4))
+
     t = django.template.loader.get_template('markup.django')
-    print(t.render(collections))
+    print(t.render(images))
+
+'''
+    'collections': [
+        {
+            'id': 'pic',
+            'prefix': 'pic',
+            'title': 'Random Pictures',
+            'pics': [
+                {
+                    'id': 'pic001',
+                    'title': 'M51',
+                    'src': 'm51.jpg',
+                },
+                {
+                    'id': 'pic002',
+                    'title': 'M54',
+                    'src': 'm54.jpg',
+                },
+'''
 
