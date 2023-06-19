@@ -29,7 +29,8 @@
 
                 {% for pic in collection.pics %}
                 <div class="thumb" id="{{ pic.id }}">
-                    <div class="thumbpic" id="{{ pic.id }}pic"><img class="thumbimg" id='{{ pic.id }}img' onClick="preview('{{ pic.id }}')" src="{{ pic.src }}"></div>
+                    <div class="thumbpic" id="{{ pic.id }}pic">
+                        <img class="thumbimg" id='{{ pic.id }}img' onClick="preview('{{ pic.id }}')" src="{{ pic.src }}"></div>
                     <div class="thumbtag" id="{{ pic.id }}tag" onClick="toggle('{{ pic.id }}')">{{ pic.title }}</div>
                 </div>
                 {% endfor %}
