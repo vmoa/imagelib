@@ -60,7 +60,7 @@ if (__name__ == "__main__"):
                 altname TEXT,
                 date TEXT,
                 path TEXT,
-                preveiw TEXT,
+                preview TEXT,
                 thumbnail TEXT
             )
         ''')
