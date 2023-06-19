@@ -62,7 +62,8 @@ function preview(el) {
     var image = document.getElementById(el+'img');
     var previewWindow = document.getElementById("preview-window");
     var previewImg = document.getElementById("preview-img");
-    previewImg.src = image.src;
+    var preview_src = image.src.replace("-thumb.png", ".png")
+    previewImg.src = preview_src
     previewImg.maxWidth = previewWindow.clientWidth;
     previewImg.maxHeight = previewWindow.clientHeight;
     document.getElementById('preview-filename').innerHTML = basename(image.src);
