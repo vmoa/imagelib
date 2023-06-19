@@ -7,6 +7,8 @@
   * cfitsio
   * libpng
 
+thuban:imagelib dlk$ pip3 install astropy
+
 pip3 install Django
 https://stackoverflow.com/questions/98135/how-do-i-use-django-templates-without-the-rest-of-django
 https://docs.djangoproject.com/en/dev/ref/templates/api/#configuring-the-template-system-in-standalone-mode
@@ -19,3 +21,9 @@ I expect we'll have two entrypoints, one to handle cron jobs and maintenance, th
 
 If SQLite becomes too cumbersome, we can use the AWS MySQL instance, but that means all dev machines will need MySQL
 as well, and that might be cumbersome.
+
+## Images
+
+1x1 binning = 4498 x 3598
+2x2 binning = 2249 x 1799
+3x3 binning = 1499 x 1199 
