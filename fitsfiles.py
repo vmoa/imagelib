@@ -13,12 +13,14 @@ import fitsdb
 # fits/Eagle/SkyX/Images/ 2023-05-20/NGC 5457 2023-05-20 LUMEN 2x2 60.000secs 00005177.fits
 # fits/Eagle/SkyX/Images/ 2023-05-20/NGC 5457 2023-05-20 LUMEN 2x2 90.000secs 00005171.fits
 
+
 class FitsFiles:
 
     imagedb = list()
     name_ndx = dict()
     date_ndx = dict()
 
+    fitspath = '/home/nas/Eagle/SkyX/Images'
     forcepng = False
 
     # Build this from file?
@@ -197,8 +199,9 @@ class FitsFiles:
 
 if (__name__ == "__main__"):
 
+    fitsdb = fitsdb.Fitsdb()
+
     fitsfiles = FitsFiles()
     fitsfiles.forcepng = 'True'  # Rebuild PNGs
-    fitsdb = fitsdb.Fitsdb()
-    fitsfiles.findNewFits('fits', fitsdb)
+    fitsfiles.findNewFits(fitsfiles.fitspath, fitsdb)
 
