@@ -161,6 +161,8 @@ if (__name__ == "__main__"):
         rows = db.cur.execute("select target, altname, thumbnail, preview from fits where date = '{}' order by id".format(date)).fetchall()
         for row in rows:
             target, altname, thumbnail, preview = row
+            if (thumbnail[0:15] == '/home/nas/Eagle'):
+                thumbnail = thumbnail[10:]
             sequence += 1
             pic = dict()
             pic["id"] = "{}_{:03d}".format(prefix, sequence)
