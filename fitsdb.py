@@ -33,8 +33,15 @@ class Fitsdb:
         questionmarks = ', '.join(qmarks)
 
         sql = 'insert into fits ({}) values ({})'.format(', '.join(cols), questionmarks)
-        self.cur.execute(sql, vals)
-        self.con.commit()
+        try:
+            self.cur.execute(sql, vals)
+            self.con.commit()
+        except sqlite3.Error as er:
+            print('WARNING: ' + ' '.join(er.args))
+            return(0)
+
+        return(1)
+
 
 # Stand-alone adminy stuff
 if (__name__ == "__main__"):
@@ -47,22 +54,26 @@ if (__name__ == "__main__"):
 
     if (command == 'create'):
 
-    # Intentionally fail if table exists
-        db.cur.execute('''
-            CREATE TABLE fits (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                fndate TEXT,
-                filter TEXT,
-                binning TEXT,
-                exposure TEXT,
-                target TEXT,
-                altname TEXT,
-                date TEXT,
-                path TEXT,
-                preview TEXT,
-                thumbnail TEXT
-            )
-        ''')
+        # Intentionally fail if table exists
+        try:
+            db.cur.execute('''
+                CREATE TABLE fits (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    fndate TEXT,
+                    filter TEXT,
+                    binning TEXT,
+                    exposure TEXT,
+                    target TEXT,
+                    altname TEXT,
+                    date TEXT,
+                    path TEXT,
+                    preview TEXT,
+                    thumbnail TEXT
+                )
+            ''')
+        except sqlite3.Error as er:
+            print('ERROR: ' + ' '.join(er.args))
+            sys.exit(1)
 
         db.cur.execute("CREATE UNIQUE INDEX fits_path_index ON fits (path)")
         db.cur.execute("CREATE INDEX fits_date_name_index ON fits (date, target)")
