@@ -2,6 +2,7 @@
 # fitsfile.py -- file manipulation routines
 #
 
+import argparse
 import json
 import os
 import re
@@ -199,9 +200,17 @@ class FitsFiles:
 
 if (__name__ == "__main__"):
 
+    parser = argparse.ArgumentParser(description='FITS file utilities.')
+    parser.add_argument('--fitspath', '-f', dest='fitspath', action='store', help='path to fits files')
+    parser.add_argument('--forcepng', '-p', dest='forcepng', action='store_true', help='force regeneration of PNG files even if they exist')
+    args = parser.parse_args()
+
     fitsdb = fitsdb.Fitsdb()
 
     fitsfiles = FitsFiles()
-    fitsfiles.forcepng = 'True'  # Rebuild PNGs
+    if (args.fitspath):
+        fitsfiles.fitspath = args.fitspath
+    if (args.forcepng):
+        fitsfiles.forcepng = args.forcepng
     fitsfiles.findNewFits(fitsfiles.fitspath, fitsdb)
 
