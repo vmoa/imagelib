@@ -13,10 +13,6 @@ import fitsdb
 
 class FitsFiles:
 
-    imagedb = list()
-    name_ndx = dict()
-    date_ndx = dict()
-
     fitspath = '/home/nas/Eagle/SkyX/Images'
     forcepng = False
 
@@ -124,6 +120,8 @@ class FitsFiles:
         else:
             newer_arg = '';
 
+        count = 0
+
         find_cmd = "find {} {} -name '*\.fits'".format(path, newer_arg)
         with os.popen(find_cmd) as find_out:
             for fullpath in find_out:
@@ -142,36 +140,9 @@ class FitsFiles:
                     (p,t) = self.fits2png(image)
                     image['preview'] = p
                     image['thumbnail'] = t
-                    #dbstash(image)
-                    fitsdb.insert(image)
+                    count += fitsdb.insert(image)
 
-    def dbstash(self, image):
-        '''Stash `image` into imagedb and build appropriate indexes.'''
-        imagedb.append(image)
-        ndx = len(imagedb) - 1  # This is the primary key for indexes
-
-        # Collect some shorthands to make indexing code more redable
-        date = image['date']
-        names = list()
-        names.append(image['target'])
-        if ('altname' in image):
-            names.append(image['altname'])
-
-        # Build date_ndx[date][name] = list of image ndx's
-        if (date not in date_ndx):
-            date_ndx[date] = dict()
-        for name in names:
-            if (name not in date_ndx[date]):
-                date_ndx[date][name] = list()
-            date_ndx[date][name].append(ndx)
-
-        # Build name_ndx[name][date] = list of image ndx's
-        for name in names:
-            if (name not in name_ndx):
-                name_ndx[name] = dict()
-            if (date not in name_ndx[name]):
-                name_ndx[name][date] = list()
-            name_ndx[name][date].append(ndx)
+        return(count)
 
 
 if (__name__ == "__main__"):
@@ -188,5 +159,7 @@ if (__name__ == "__main__"):
         fitsfiles.fitspath = args.fitspath
     if (args.forcepng):
         fitsfiles.forcepng = args.forcepng
-    fitsfiles.findNewFits(fitsfiles.fitspath, fitsdb)
+    count = fitsfiles.findNewFits(fitsfiles.fitspath, fitsdb)
+
+    print("Successfully added {} images".format(count))
 
