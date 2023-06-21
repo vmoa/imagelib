@@ -10,10 +10,6 @@ import sys
 
 import fitsdb
 
-# thuban:imagelib dlk$ find fits -name '*\.fits'
-# fits/Eagle/SkyX/Images/ 2023-05-20/NGC 5457 2023-05-20 LUMEN 2x2 60.000secs 00005177.fits
-# fits/Eagle/SkyX/Images/ 2023-05-20/NGC 5457 2023-05-20 LUMEN 2x2 90.000secs 00005171.fits
-
 
 class FitsFiles:
 
@@ -31,10 +27,6 @@ class FitsFiles:
     }
 
     def __init__(self):
-        pass
-
-    def fetchFits(self, path):
-        '''Descend into `path` and build a database (dictionary for now) of all our FITS images.'''
         pass
 
     def parseFilename(self, filename):
@@ -90,7 +82,6 @@ class FitsFiles:
         else:
             image["target"] = target
 
-        #print(image)
         return(image)
 
     def fits2png(self, image):
@@ -134,7 +125,6 @@ class FitsFiles:
             newer_arg = '';
 
         find_cmd = "find {} {} -name '*\.fits'".format(path, newer_arg)
-        print("DEBUG: " + find_cmd)
         with os.popen(find_cmd) as find_out:
             for fullpath in find_out:
                 fullpath = fullpath.rstrip()
@@ -149,13 +139,11 @@ class FitsFiles:
                     image = self.parseFilename(filename)
                     image["date"] = m.group(0)
                     image["path"] = fullpath
-                    print("\nPath: {}".format(fullpath))
                     (p,t) = self.fits2png(image)
                     image['preview'] = p
                     image['thumbnail'] = t
                     #dbstash(image)
                     fitsdb.insert(image)
-                    print('  ', image)
 
     def dbstash(self, image):
         '''Stash `image` into imagedb and build appropriate indexes.'''
@@ -171,32 +159,20 @@ class FitsFiles:
 
         # Build date_ndx[date][name] = list of image ndx's
         if (date not in date_ndx):
-            print("Initializing date_ndx[{}]".format(date))
             date_ndx[date] = dict()
         for name in names:
             if (name not in date_ndx[date]):
-                print("Initializing date_ndx[{}][{}]".format(date,name))
                 date_ndx[date][name] = list()
             date_ndx[date][name].append(ndx)
 
         # Build name_ndx[name][date] = list of image ndx's
         for name in names:
             if (name not in name_ndx):
-                print("Initializing name_ndx[{}]".format(name))
                 name_ndx[name] = dict()
             if (date not in name_ndx[name]):
-                print("Initializing name_ndx[{}][{}]".format(name,date))
                 name_ndx[name][date] = list()
             name_ndx[name][date].append(ndx)
 
-    def loadOldDb():
-        pass
-
-    def saveNewDb():
-        print(json.dumps(imagedb, indent=4))
-        print(json.dumps(date_ndx, indent=4))
-        print(json.dumps(name_ndx, indent=4))
-        pass
 
 if (__name__ == "__main__"):
 
