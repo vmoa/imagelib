@@ -33,7 +33,6 @@ class Fitsdb:
         questionmarks = ', '.join(qmarks)
 
         sql = 'insert into fits ({}) values ({})'.format(', '.join(cols), questionmarks)
-        print(sql, "\n>> ", vals, "\n")
         self.cur.execute(sql, vals)
         self.con.commit()
 
@@ -70,8 +69,9 @@ if (__name__ == "__main__"):
         db.cur.execute("CREATE INDEX fits_name_date_index ON fits (target, date)")
         db.con.commit()
         db.con.close()
+        sys.exit()
 
-    if (command == 'status'):
+    if (command == 'status' or command == 'stat'):
         total_rows = db.cur.execute("select count(*) from fits").fetchone()[0]
         targets = db.cur.execute("select distinct(target), count(*) from fits GROUP by target order by 2 desc, 1 asc").fetchall()
         dates = db.cur.execute("select distinct(date), count(*) from fits GROUP by date order by 2 desc, 1 asc").fetchall()
@@ -88,4 +88,9 @@ if (__name__ == "__main__"):
         for row in dates:
             t.append("{}({})".format(row[0], row[1]))
         print("  Dates: {} --> {}".format(len(dates), ', '.join(t)))
+        sys.exit()
 
+    if (command):
+        print("Unknown command: {}".format(command))
+    else:
+        print("Usage: fitsdb.py create|status")
