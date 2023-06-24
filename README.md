@@ -7,7 +7,11 @@
   * cfitsio
   * libpng
 
-thuban:imagelib dlk$ pip3 install astropy
+Either
+* pip3 install flask
+* sudo apt-get install python3-flask
+
+pip3 install astropy
 
 pip3 install Django
 https://stackoverflow.com/questions/98135/how-do-i-use-django-templates-without-the-rest-of-django

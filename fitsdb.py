@@ -10,14 +10,15 @@ class Fitsdb:
     dbfile = 'fits.db'   # Should probably have a full path one day
 
     def __init__(self):
-        self.con = sqlite3.connect(self.dbfile)
-        self.cur = self.con.cursor()
+        # All threads use a single connection, so care must be taken when writing!
+        self.con = sqlite3.connect(self.dbfile, check_same_thread=False)
 
     def __del__(self):
         self.con.close()
 
     def execute_and_commit(self, sql):
-        self.cur.execute(sql)
+        cur = self.con.cursor()
+        cur.execute(sql)
         self.con.commit()
 
     def insert(self, image):
@@ -32,9 +33,10 @@ class Fitsdb:
 
         questionmarks = ', '.join(qmarks)
 
+        cur = self.con.cursor()
         sql = 'insert into fits ({}) values ({})'.format(', '.join(cols), questionmarks)
         try:
-            self.cur.execute(sql, vals)
+            cur.execute(sql, vals)
             self.con.commit()
         except sqlite3.Error as er:
             print('WARNING: ' + ' '.join(er.args))
@@ -55,8 +57,9 @@ if (__name__ == "__main__"):
     if (command == 'create'):
 
         # Intentionally fail if table exists
+        cur = db.con.cursor()
         try:
-            db.cur.execute('''
+            cur.execute('''
                 CREATE TABLE fits (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     fndate TEXT,
@@ -75,17 +78,18 @@ if (__name__ == "__main__"):
             print('ERROR: ' + ' '.join(er.args))
             sys.exit(1)
 
-        db.cur.execute("CREATE UNIQUE INDEX fits_path_index ON fits (path)")
-        db.cur.execute("CREATE INDEX fits_date_name_index ON fits (date, target)")
-        db.cur.execute("CREATE INDEX fits_name_date_index ON fits (target, date)")
+        cur.execute("CREATE UNIQUE INDEX fits_path_index ON fits (path)")
+        cur.execute("CREATE INDEX fits_date_name_index ON fits (date, target)")
+        cur.execute("CREATE INDEX fits_name_date_index ON fits (target, date)")
         db.con.commit()
         db.con.close()
         sys.exit()
 
     if (command == 'status' or command == 'stat'):
-        total_rows = db.cur.execute("select count(*) from fits").fetchone()[0]
-        targets = db.cur.execute("select distinct(target), count(*) from fits GROUP by target order by 2 desc, 1 asc").fetchall()
-        dates = db.cur.execute("select distinct(date), count(*) from fits GROUP by date order by 2 desc, 1 asc").fetchall()
+        cur = db.con.cursor()
+        total_rows = cur.execute("select count(*) from fits").fetchone()[0]
+        targets = cur.execute("select distinct(target), count(*) from fits GROUP by target order by 2 desc, 1 asc").fetchall()
+        dates = cur.execute("select distinct(date), count(*) from fits GROUP by date order by 2 desc, 1 asc").fetchall()
         db.con.close()
 
         print("Database Status:\n  Total images: {}".format(total_rows))

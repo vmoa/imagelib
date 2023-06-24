@@ -29,10 +29,11 @@ class Markup:
         ])
         django.setup()
 
-    def markup(self):
+    def build_images(self):
 
         dates = list()
-        rows = self.db.cur.execute("select distinct(date) from fits order by date desc").fetchall()
+        cur = self.db.con.cursor()
+        rows = cur.execute("select distinct(date) from fits order by date desc").fetchall()
         for row in rows:
             dates.append(row[0])
 
@@ -50,7 +51,7 @@ class Markup:
             collection["pics"] = list()
 
             sequence = 0
-            rows = self.db.cur.execute("select target, altname, thumbnail, preview from fits where date = '{}' order by id".format(date)).fetchall()
+            rows = cur.execute("select target, altname, thumbnail, preview from fits where date = '{}' order by id".format(date)).fetchall()
             for row in rows:
                 target, altname, thumbnail, preview = row
                 if (thumbnail[0:15] == '/home/nas/Eagle'):
@@ -68,7 +69,10 @@ class Markup:
             images["collections"].append(collection)
 
         # print(json.dumps(images, indent=4))
+        return(images)
 
+    def markup(self):
+        images = self.build_images()
         t = django.template.loader.get_template('markup.django')
         return(t.render(images))
 
