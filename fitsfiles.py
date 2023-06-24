@@ -3,6 +3,7 @@
 #
 
 import argparse
+import datetime
 import json
 import os
 import re
@@ -15,6 +16,9 @@ class FitsFiles:
 
     fitspath = '/home/nas/Eagle/SkyX/Images'
     forcepng = False
+
+    db_dir = '.'  # Should probably move to fitsdb.py
+    ts_file = db_dir + '/last_run'
 
     # Build this from file?
     ngc_catalog = {
@@ -113,13 +117,12 @@ class FitsFiles:
         '''Find new FITS files since last time we were run.  Runs the `find` system command on `path` to
            locate *.fits newer than `ts_file`.
            TBD: Stash the results in a list and build indexes into the list.'''
-        cache_dir = '.'
-        ts_file = cache_dir + '/.last_run'
-        if (os.path.exists(ts_file)):
-            newer_arg = '-newer ' + ts_file
+        if (os.path.exists(self.ts_file)):
+            newer_arg = '-newer ' + self.ts_file
         else:
             newer_arg = '';
 
+        start_time = datetime.datetime.now()  # On the off chance new files come in during find
         count = 0
 
         find_cmd = "find {} {} -name '*\.fits'".format(path, newer_arg)
@@ -141,6 +144,13 @@ class FitsFiles:
                     image['preview'] = p
                     image['thumbnail'] = t
                     count += fitsdb.insert(image)
+
+        # Update the timestamp with our start time, but only if successful
+        if (count > 0):
+            timestamp = start_time.strftime("%Y%m%d%H%M.%S")  # [[CC]YY]MMDDhhmm[.ss] 
+            cmd = "touch -t {} {}".format(timestamp, self.ts_file)
+            print(cmd)
+            os.system(cmd)
 
         return(count)
 
