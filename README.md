@@ -27,3 +27,24 @@ as well, and that might be cumbersome.
 1x1 binning = 4498 x 3598
 2x2 binning = 2249 x 1799
 3x3 binning = 1499 x 1199 
+
+### Markup structure
+
+'''
+    'collections': [
+        {
+            'id': 'pic',
+            'prefix': 'pic',
+            'title': 'Random Pictures',
+            'pics': [
+                {
+                    'id': 'pic001',
+                    'title': 'M51',
+                    'src': 'm51.jpg',
+                },
+                {
+                    'id': 'pic002',
+                    'title': 'M54',
+                    'src': 'm54.jpg',
+                },
+'''
