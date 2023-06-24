@@ -73,7 +73,7 @@ class Markup:
 
     def markup(self):
         images = self.build_images()
-        t = django.template.loader.get_template('markup.django')
+        t = django.template.loader.get_template('templates/imagelib.html')
         return(t.render(images))
 
 
