@@ -34,21 +34,34 @@ as well, and that might be cumbersome.
 
 ### Markup structure
 
+This is the dictionary passed to the template rendering engine.
+
 '''
-    'collections': [
+    'title': 'RFO Image Library: ...',      # Page title
+    'next': 'YYYY-MM-DD',                   # Date to start next page
+    'collections': [                        # Array of date keyed collections
         {
-            'id': 'pic',
-            'prefix': 'pic',
-            'title': 'Random Pictures',
-            'pics': [
+            'id': 'rfo_YYYY-MM-DD',         # Unique identifier for this date
+            'prefix': 'rfo_YYYY-MM-DD',     # Same as `id`, but used for selection
+            'title': 'YYYY-MM-DD',          # Title of this collection
+            'pics': [                       # Array of images (thumbnails) in this collection
                 {
-                    'id': 'pic001',
-                    'title': 'M51',
-                    'src': 'm51.jpg',
+                    'id': 'rfo_YYYY-MM-DD_001',  # Unique identfier for this thumbnail
+                    'title': 'M51',         # Title of the thumbnail
+                    'src': 'm51.jpg',       # Source path for the thumbnail image
                 },
                 {
-                    'id': 'pic002',
+                    'id': 'rfo_YYYY-MM-DD_002',
                     'title': 'M54',
                     'src': 'm54.jpg',
                 },
+        },
+        {
+            'id': 'rfo_YYYY-MM-DD',
+            'prefix': 'rfo_YYYY-MM-DD',
+            'title': 'YYYY-MM-DD',
+            ...
+        },
+        ...
+    ]
 '''
