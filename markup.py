@@ -18,6 +18,7 @@ import fitsdb
 class Markup:
 
     db = fitsdb.Fitsdb()
+    thumb_max = 64    # Number of thumbnails to display (rounded up to fill the grouping)
 
     def __init__(self):
         django.conf.settings.configure(TEMPLATES=[
@@ -29,11 +30,14 @@ class Markup:
         ])
         django.setup()
 
-    def build_images(self):
-
+    def build_images(self, start=None):
+        '''Build a template (dictionary) of which images to display.'''
         dates = list()
         cur = self.db.con.cursor()
-        rows = cur.execute("select distinct(date) from fits order by date desc").fetchall()
+        if (start):
+            rows = cur.execute("select distinct(date) from fits where date <= ? order by date desc", (start,)).fetchall()
+        else:
+            rows = cur.execute("select distinct(date) from fits order by date desc").fetchall()
         for row in rows:
             dates.append(row[0])
 
@@ -41,7 +45,12 @@ class Markup:
         images["title"] = "RFO Image Library: All"
         images["collections"] = list()
 
+        thumb_count = 0
         for date in dates:
+
+            if (thumb_count >= self.thumb_max):
+                images["next"] = date
+                break
 
             collection = dict()
             prefix = "rfo_{}".format(date)
@@ -53,10 +62,11 @@ class Markup:
             sequence = 0
             rows = cur.execute("select target, altname, thumbnail, preview from fits where date = '{}' order by id".format(date)).fetchall()
             for row in rows:
+                thumb_count += 1
+                sequence += 1
                 target, altname, thumbnail, preview = row
                 if (thumbnail[0:15] == '/home/nas/Eagle'):
                     thumbnail = thumbnail[10:]
-                sequence += 1
                 pic = dict()
                 pic["id"] = "{}_{:03d}".format(prefix, sequence)
                 pic["title"] = target

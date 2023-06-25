@@ -37,6 +37,17 @@
 
             </div>
             {% endfor %}
+
+            <div class="page_footer_bar" id="page_footer_bar">
+                {% if next %}
+                    <form id="next" method="post">
+                    <input type="hidden" name="start" value="{{ next }}">
+                    <span class="left"><input type="submit" value="NEXT>>>"></span>
+                    </form>
+                {% else %}
+                    <span class="left">(Last)</span>
+                {% endif %}
+            </div>
         </div>
 
         <!-- Preview modal (js will hide/unhide) -->

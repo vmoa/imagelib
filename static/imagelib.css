@@ -12,6 +12,10 @@ html, body {
 	float: right;
 }
 
+.left {
+	float: left;
+}
+
 .container {
     margin: 0;
     padding: 0;
@@ -23,7 +27,7 @@ html, body {
     background-color: #60B3B3;
 }
 
-div.page_title_bar {
+div.page_title_bar, div.page_footer_bar {
     height: 26px;
     line-height: 18px;
     border: 0px;
@@ -50,7 +54,6 @@ div.page_title_bar {
     margin: 0;
     padding: 0;
     width: 100%;
-    overflow: auto;
     background-color: #4287f5;
 	padding-bottom: 10px;
 	border-width: 5px;
