@@ -8,10 +8,13 @@ import sqlite3
 
 class Fitsdb:
 
-    if (os.path.exists('fits.db')):
-        dbfile = 'fits.db'
-    else:
+    if (os.path.exists('/home/nas/data')):
         dbfile = '/home/nas/data/fits.db'
+        tsfile = '/home/nas/data/fits.last_run'
+    else:
+        dbfile = 'fits.db'
+        tsfile = 'fits.last_run'
+
 
     def __init__(self):
         # All threads use a single connection, so care must be taken when writing!

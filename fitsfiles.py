@@ -14,11 +14,12 @@ import fitsdb
 
 class FitsFiles:
 
-    fitspath = '/home/nas/Eagle/SkyX/Images'
-    forcepng = False
+    if (os.path.exists('/home/nas/Eagle/SkyX/Images')):
+        fitspath = '/home/nas/Eagle/SkyX/Images'
+    else:
+        fitspath = 'Eagle'
 
-    db_dir = '.'  # Should probably move to fitsdb.py
-    ts_file = db_dir + '/last_run'
+    forcepng = False
 
     # Build this from file?
     ngc_catalog = {
@@ -117,8 +118,8 @@ class FitsFiles:
         '''Find new FITS files since last time we were run.  Runs the `find` system command on `path` to
            locate *.fits newer than `ts_file`.
            TBD: Stash the results in a list and build indexes into the list.'''
-        if (os.path.exists(self.ts_file)):
-            newer_arg = '-newer ' + self.ts_file
+        if (os.path.exists(fitsdb.tsfile)):
+            newer_arg = '-newer ' + fitsdb.tsfile
         else:
             newer_arg = '';
 
@@ -148,7 +149,7 @@ class FitsFiles:
         # Update the timestamp with our start time, but only if successful
         if (count > 0):
             timestamp = start_time.strftime("%Y%m%d%H%M.%S")  # [[CC]YY]MMDDhhmm[.ss] 
-            cmd = "touch -t {} {}".format(timestamp, self.ts_file)
+            cmd = "touch -t {} {}".format(timestamp, fitsdb.tsfile)
             print(cmd)
             os.system(cmd)
 
