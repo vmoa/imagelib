@@ -3,12 +3,14 @@
 m51.jpg
 m54.jpg
 m57.jpg
-last_run
+fits.last_run
 fits.db
 fits/
+Eagle/
 
 twilio.conf
 __pycache__
+*.pyc
 .nopage
 nopage
 

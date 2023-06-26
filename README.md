@@ -34,7 +34,7 @@ virtualenv venv
 . ./venv/bin/activate
 pip install Flask
 pip install django  (figure out how to use Flask instead)
-ln -s ../Eagle .
+ln -s ../../Eagle .
 ```
 
 * Build database
