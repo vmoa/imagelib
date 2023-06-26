@@ -2,12 +2,16 @@
 # Database routeines using SQLite database
 #
 
+import os
 import sys
 import sqlite3
 
 class Fitsdb:
 
-    dbfile = 'fits.db'   # Should probably have a full path one day
+    if (os.path.exists('fits.db')):
+        dbfile = 'fits.db'
+    else:
+        dbfile = '/home/nas/data/fits.db'
 
     def __init__(self):
         # All threads use a single connection, so care must be taken when writing!

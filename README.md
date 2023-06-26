@@ -19,6 +19,47 @@ https://docs.djangoproject.com/en/dev/ref/templates/api/#configuring-the-templat
 
 Uses SQLite3 which is conveniently built into Python
 
+## Configure Apache WSGI
+
+```
+sudo apt-get install libapache2-mod-wsgi-py3
+cp etc/100-imagelib.conf /etc/apache2/sites-available
+sudo a2ensite 100-imagelib
+```
+
+* Install and configure virtual env 
+
+```
+virtualenv venv
+. ./venv/bin/activate
+pip install Flask
+pip install django  (figure out how to use Flask instead)
+ln -s ../Eagle .
+```
+
+* Build database
+
+```
+mkdir /home/nas/data
+python3 fitsdb.py create
+python3 fitsfiles.py
+```
+
+* Test by hand
+
+```
+. ./venv/bin/activate
+python3 ./__init__.py
+```
+
+* Reload apache
+
+```
+sudo apachectl reload
+```
+
+
+
 ## Thoughts
 
 I expect we'll have two entrypoints, one to handle cron jobs and maintenance, the other to handle dynamic web requests.
