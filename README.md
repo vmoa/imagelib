@@ -19,6 +19,14 @@ https://docs.djangoproject.com/en/dev/ref/templates/api/#configuring-the-templat
 
 Uses SQLite3 which is conveniently built into Python
 
+## Reset database
+
+```
+rm fits.db fits.last_run
+python3 fitsdb.py create
+python3 fitsfiles.py
+```
+
 ## Configure Apache WSGI
 
 ```
