@@ -126,31 +126,35 @@ class FitsFiles:
         start_time = datetime.datetime.now()  # On the off chance new files come in during find
         count = 0
 
-        find_cmd = "find {} {} -name '*\.fits'".format(path, newer_arg)
+        find_cmd = "find {} {} -type f -name '*\.fits' -o -name '*\.fit'".format(path, newer_arg)
         with os.popen(find_cmd) as find_out:
             for fullpath in find_out:
                 fullpath = fullpath.rstrip()
                 path = fullpath.split('/')
                 filename = path.pop()
-                datestr = path.pop()
 
                 # We're only interested in folders that are dates
-                datestr_re = re.compile("(\d{4}-\d{2}-\d{2})");
-                m = datestr_re.search(datestr)
-                if (m):
-                    image = self.parseFilename(filename)
-                    image["date"] = m.group(0)
-                    image["path"] = fullpath
-                    (p,t) = self.fits2png(image)
-                    image['preview'] = p
-                    image['thumbnail'] = t
-                    count += fitsdb.insert(image)
+                datestr_re = re.compile("(\d{4}-\d{2}-\d{2})")
+                found = False
+                while (path):
+                    datestr = path.pop()
+                    m = datestr_re.search(datestr)
+                    if (m):
+                        found = True
+                        image = self.parseFilename(filename)
+                        image["date"] = m.group(0)
+                        image["path"] = fullpath
+                        (p,t) = self.fits2png(image)
+                        image['preview'] = p
+                        image['thumbnail'] = t
+                        count += fitsdb.insert(image)
+                if (not found):
+                    print(f"Skipping file: cannot find date: {fullpath}")
 
         # Update the timestamp with our start time, but only if successful
         if (count > 0):
             timestamp = start_time.strftime("%Y%m%d%H%M.%S")  # [[CC]YY]MMDDhhmm[.ss] 
             cmd = "touch -t {} {}".format(timestamp, fitsdb.tsfile)
-            print(cmd)
             os.system(cmd)
 
         return(count)
