@@ -2,16 +2,11 @@
 # markup.py -- django markup routines
 #
 
+import flask
 import json
 import os
 import re
 import sys
-
-# https://stackoverflow.com/questions/98135/how-do-i-use-django-templates-without-the-rest-of-django
-from django.template import Template, Context
-from django.template.loader import get_template
-from django.conf import settings
-import django
 
 import fitsdb
 
@@ -21,14 +16,7 @@ class Markup:
     thumb_max = 64    # Number of thumbnails to display (rounded up to fill the grouping)
 
     def __init__(self):
-        django.conf.settings.configure(TEMPLATES=[
-            {
-                'BACKEND': 'django.template.backends.django.DjangoTemplates',
-                'DIRS': ['.'], # if you want the templates from a file
-                'APP_DIRS': False, # we have no apps
-            },
-        ])
-        django.setup()
+        pass
 
     def build_images(self, start=None):
         '''Build a template (dictionary) of which images to display.'''
@@ -81,15 +69,9 @@ class Markup:
         # print(json.dumps(images, indent=4))
         return(images)
 
-    def markup(self):
-        images = self.build_images()
-        t = django.template.loader.get_template('templates/imagelib.html')
-        return(t.render(images))
-
-
 
 if (__name__ == "__main__"):
 
     markup = Markup()
-    page = markup.markup()
-    print(page)
+    t = markup.build_images()
+    print(flask.render_template('imagelib.html', **t))
