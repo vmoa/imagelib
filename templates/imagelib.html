@@ -28,7 +28,7 @@
                 </div>
 
                 {% for pic in collection.pics %}
-                <div class="thumb" id="{{ pic.id }}">
+                <div class="thumb" id="{{ pic.id }}" data-recid="{{ pic.recid }}">
                     <div class="thumbpic" id="{{ pic.id }}pic">
                         <img class="thumbimg" id='{{ pic.id }}img' onClick="preview('{{ pic.id }}')" src="{{ pic.src }}"></div>
                     <div class="thumbtag" id="{{ pic.id }}tag" onClick="toggle('{{ pic.id }}')">{{ pic.title }}</div>

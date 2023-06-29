@@ -48,15 +48,16 @@ class Markup:
             collection["pics"] = list()
 
             sequence = 0
-            rows = cur.execute("select target, altname, thumbnail, preview from fits where date = '{}' order by id".format(date)).fetchall()
+            rows = cur.execute("select id, target, altname, thumbnail, preview from fits where date = '{}' order by id".format(date)).fetchall()
             for row in rows:
                 thumb_count += 1
                 sequence += 1
-                target, altname, thumbnail, preview = row
+                recid, target, altname, thumbnail, preview = row
                 if (thumbnail[0:15] == '/home/nas/Eagle'):
                     thumbnail = thumbnail[10:]
                 pic = dict()
                 pic["id"] = "{}_{:03d}".format(prefix, sequence)
+                pic["recid"] = recid
                 pic["title"] = target
                 if (altname):
                     pic["title"] += " ({})".format(altname)
@@ -72,6 +73,8 @@ class Markup:
 
 if (__name__ == "__main__"):
 
+    app = flask.Flask(__name__)
     markup = Markup()
     t = markup.build_images()
-    print(flask.render_template('imagelib.html', **t))
+    with app.app_context():
+        print(flask.render_template('imagelib.html', **t))
