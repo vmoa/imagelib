@@ -66,7 +66,7 @@ function preview(el) {
     previewImg.src = preview_src
     previewImg.maxWidth = previewWindow.clientWidth;
     previewImg.maxHeight = previewWindow.clientHeight;
-    document.getElementById('preview-filename').innerHTML = basename(image.src);
+    document.getElementById('preview-filename').innerHTML = basename(image.src).replaceAll("%20", " ");
     document.getElementById("preview-content").style.borderColor = document.getElementById(el).rfoIsSelected ? color_selected : color_unselected;
     document.getElementById("preview-select").setAttribute("onclick","toggleSelect('" + el + "',-1)")
     document.addEventListener("keydown", keydownHandler);
