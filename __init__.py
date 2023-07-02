@@ -2,8 +2,22 @@
 # imagelib main web interface
 #
 
+import json
 import sys
 sys.path.insert(0,"/home/nas/flask/imagelib")
+
+from logging.config import dictConfig
+dictConfig({
+    'version': 1,
+    'handlers': {'wsgi': {
+        'class': 'logging.StreamHandler',
+        'stream': 'ext://flask.logging.wsgi_errors_stream',
+    }},
+    'root': {
+        'level': 'INFO',
+        'handlers': ['wsgi']
+    }
+})
 
 import flask
 app = flask.Flask(__name__)
@@ -21,6 +35,15 @@ def top():
     # print("Args: ", flask.request.args.to_dict(), " Form: ", flask.request.form.to_dict())
     t = markup.build_images(flask.request.form.get('start'))
     return flask.render_template('imagelib.html', **t)
+
+@app.route('/download', methods=['GET','POST'])
+def download():
+    app.logger.info("DEBUG: download({})".format(flask.request.form.get('recids')))
+    tempfn = markup.zipit(flask.request.form.get('recids'))
+    app.logger.info("DEBUG: sending {}".format(tempfn))
+    response = flask.send_file(tempfn, as_attachment=True)
+    return response
+    # unlink(tempfn)
 
 # DEBUG HACK; should make it so Apache deals with this
 @app.route('/fits/<path:path>')
