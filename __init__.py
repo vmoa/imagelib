@@ -2,9 +2,13 @@
 # imagelib main web interface
 #
 
-import json
+prodhome = "/home/nas/flask/imagelib"
+import os
 import sys
-sys.path.insert(0,"/home/nas/flask/imagelib")
+if (os.path.exists(prodhome)):
+    sys.path.insert(0, prodhome)
+else:
+    sys.path.insert(0, ".")
 
 from logging.config import dictConfig
 dictConfig({
