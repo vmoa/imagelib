@@ -7,6 +7,8 @@ import json
 import os
 import re
 import sys
+import time
+import zipfile
 
 import fitsdb
 
@@ -14,6 +16,7 @@ class Markup:
 
     db = fitsdb.Fitsdb()
     thumb_max = 64    # Number of thumbnails to display (rounded up to fill the grouping)
+    sequence = 0      # To prevent download file collisions
 
     def __init__(self):
         pass
@@ -69,6 +72,31 @@ class Markup:
 
         # print(json.dumps(images, indent=4))
         return(images)
+
+    def zipit(self, recidstr):
+        '''Query the database for specified record IDs, zip up the fits files and return zip file path.'''
+        recids = recidstr.split(',')
+        qmarks = list()
+        for x in recids:
+            qmarks.append('?')
+        questionmarks = ', '.join(qmarks)
+
+        cur = self.db.con.cursor()
+        sql = "select id, path from fits where id in ({}) order by id".format(questionmarks)
+        rows = cur.execute(sql, recids)
+
+        # Experiments show that at compressionlevel=1, the zip file is 3% larger than at =9, but 9 takes 5 times as long
+        self.sequence += 1
+        datestr = time.strftime('%Y-%m-%d')
+        tempfn = '/tmp/fits_{}_{:04d}.zip'.format(datestr, self.sequence)
+        if (os.path.exists(tempfn)):
+            os.remove(tempfn)
+        with zipfile.ZipFile(tempfn, mode='x', compression=zipfile.ZIP_DEFLATED, compresslevel=1) as zip:
+            for row in rows:
+                id, path = row
+                zip.write(path, arcname=os.path.basename(path))
+
+        return(tempfn)
 
 
 if (__name__ == "__main__"):
