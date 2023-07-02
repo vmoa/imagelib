@@ -41,6 +41,19 @@ function selectMulti(prefix, mode) {
     }
 }
 
+function setRecids() {
+    console.log("setRecids()");
+    var dlist = [];
+    var thumbs = document.getElementsByClassName('thumb');
+    for (let i=0; i < thumbs.length; i++) {
+        if (thumbs[i].rfoIsSelected) {
+            dlist.push(thumbs[i].dataset.recid)
+        }
+    }
+    console.log("recids=" + dlist.join(","));
+    document.dlform.recids.value = dlist.join(",");
+}
+
 function basename(path) {
    return path.split('/').reverse()[0];
 }
