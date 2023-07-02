@@ -12,7 +12,12 @@
 
             <div class="page_title_bar" id="page_title_bar">
                 <span class="page_title_title">{{ title }}</span>
-                <span class="right"><a href='/' alt='Home'>[Home]</a></span>
+                <span class="right"><a href='/' alt='Home'><image src="static/home.png" height="28" alt="[Home]"></a></span>
+                <span class="right"><img src="static/1x1-transparent.png" width="8" height="1"></span>
+                <span class="right"><form name="dlform" method="POST" onSubmit="setRecids();" action="/download">
+                    <input type="hidden" name="recids">
+                    <input type="image" border="0" src="static/download.png" height="28" alt="[Download]">
+                </form></span>
             </div>
 
             {% for collection in collections %}
@@ -40,12 +45,12 @@
 
             <div class="page_footer_bar" id="page_footer_bar">
                 {% if next %}
-                    <form id="next" method="post">
+                    <form id="next" method="post" action="/">
                     <input type="hidden" name="start" value="{{ next }}">
-                    <span class="left"><input type="submit" value="NEXT>>>"></span>
+                    <span class="right"><input type="image" border="0" src="static/next.png" height="28" alt="[Next]"></span>
                     </form>
                 {% else %}
-                    <span class="left">(Last)</span>
+                    <span class="right">(Last)</span>
                 {% endif %}
             </div>
         </div>
