@@ -28,7 +28,7 @@ html, body {
 }
 
 div.page_title_bar, div.page_footer_bar {
-    height: 26px;
+    height: 32px;
     line-height: 18px;
     border: 0px;
     padding-top: 8px;
