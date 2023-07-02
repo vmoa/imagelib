@@ -1,23 +1,35 @@
+# RFO Image Library Code
 
+Welcome to the RFO Image Library.  It renders png previews of FITs files captured at RFO and provides searching (soon) and downloading of the fits files.
 
+* `fitsdb.py`: database management library and CLI.  Uses SQLite3.
+* `fitsfiles.py`: filesystem management CLI.  It is run from cron and searches for new fits files to add to the database.
+* `__init__.py`: Flask entrypoint for serving web pages.
+* `imagelib.wsgi`: WSGI interface for `__init__.py`.  Used by the production Apache server.
+* `markup.py`: library to build the Jinja dictionary for parsing `template/imagelib.html`.
+
+Also:
+
+* `templates/imagelib.html`: Jinja template used to render the web page.
+* `static/imagelib.css`: CSS styles used by `templates/imagelib.html`.
+* `static/imagelib.js`: Javascript code used to manipulate the web page.
+* `static/*.png`: Various buttons used on the web page.
 
 ## Dependencies
 
-* fitspng
-  * cfitsio
-  * libpng
+* fitspng from https://integral.physics.muni.cz/fitspng/
+  * Linux: `sudo apt-get install fitspng`
+  * Mac: download and build source (requires `cfitsio` and `libpng`)
 
-Either
-* pip3 install flask
-* sudo apt-get install python3-flask
+* Flask
+  * Linux: `sudo apt-get install python3-flask`
+  * Mac: `pip3 install flask`
 
-pip3 install astropy
+* astroy (future)
+  * Linux: `sudo apt-get install python3-astropy`
+  * Mac: `pip3 install astropy`
 
-pip3 install Django
-https://stackoverflow.com/questions/98135/how-do-i-use-django-templates-without-the-rest-of-django
-https://docs.djangoproject.com/en/dev/ref/templates/api/#configuring-the-template-system-in-standalone-mode
-
-Uses SQLite3 which is conveniently built into Python
+* SQLite3 (which is conveniently built into most Python distributions)
 
 ## Reset database
 
@@ -75,17 +87,17 @@ I expect we'll have two entrypoints, one to handle cron jobs and maintenance, th
 If SQLite becomes too cumbersome, we can use the AWS MySQL instance, but that means all dev machines will need MySQL
 as well, and that might be cumbersome.
 
-## Images
+## Images from Atik 16200
 
-1x1 binning = 4498 x 3598
-2x2 binning = 2249 x 1799
-3x3 binning = 1499 x 1199 
+* 1x1 binning = 4498 x 3598
+* 2x2 binning = 2249 x 1799
+* 3x3 binning = 1499 x 1199 
 
-### Markup structure
+## Markup structure
 
 This is the dictionary passed to the template rendering engine.
 
-'''
+```
     'title': 'RFO Image Library: ...',      # Page title
     'next': 'YYYY-MM-DD',                   # Date to start next page
     'collections': [                        # Array of date keyed collections
@@ -96,11 +108,13 @@ This is the dictionary passed to the template rendering engine.
             'pics': [                       # Array of images (thumbnails) in this collection
                 {
                     'id': 'rfo_YYYY-MM-DD_001',  # Unique identfier for this thumbnail
+                    'recid': '123',         # The SQLite fits.db record `id` for this image
                     'title': 'M51',         # Title of the thumbnail
                     'src': 'm51.jpg',       # Source path for the thumbnail image
                 },
                 {
                     'id': 'rfo_YYYY-MM-DD_002',
+                    'recid': '124',
                     'title': 'M54',
                     'src': 'm54.jpg',
                 },
@@ -113,4 +127,4 @@ This is the dictionary passed to the template rendering engine.
         },
         ...
     ]
-'''
+```
