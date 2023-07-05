@@ -55,7 +55,6 @@ class FitsFiles:
 
     def buildDatabaseRecord(self, filename, headers):
         '''Translate FITS headers into database record fields.'''
-        print(headers)
         record = dict()
         record['path'] = filename
         if ('OBJECT') in headers:
@@ -66,12 +65,16 @@ class FitsFiles:
         record['date'] = datetime.datetime.fromisoformat(headers['DATE-OBS']).strftime('%Y-%m-%d')  # YYYY-MM-DD (GMT) convenient for sorting
         if ('FILTER') in headers:
             record['filter'] = headers['FILTER'].strip()
-        record['binning'] = "{}x{}".format(headers['XBINNING'], headers['YBINNING'])
-        record['exposure'] = headers['EXPTIME']
-        record['ra'] = headers['OBJCTRA']
-        record['dec'] = headers['OBJCTDEC']
-        record['x'] = headers['NAXIS1']
-        record['y'] = headers['NAXIS2']
+        if ('XBINNING' in headers and 'YBINNING' in headers):
+            record['binning'] = "{}x{}".format(headers['XBINNING'], headers['YBINNING'])
+        if ('EXPTIME' in headers):
+            record['exposure'] = headers['EXPTIME']
+        if ('OBJCTRA' in headers and 'OBJCTDEC' in headers):
+            record['ra'] = headers['OBJCTRA']
+            record['dec'] = headers['OBJCTDEC']
+        if ('NAXIS1' in headers and 'NAXIS2' in headers):
+            record['x'] = headers['NAXIS1']
+            record['y'] = headers['NAXIS2']
         return(record)
 
     def fits2png(self, record):
