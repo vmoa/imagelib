@@ -51,19 +51,17 @@ class Markup:
             collection["pics"] = list()
 
             sequence = 0
-            rows = cur.execute("select id, target, altname, thumbnail, preview from fits where date = '{}' order by id".format(date)).fetchall()
+            rows = cur.execute("select id, target, thumbnail, preview from fits where date = '{}' order by id".format(date)).fetchall()
             for row in rows:
                 thumb_count += 1
                 sequence += 1
-                recid, target, altname, thumbnail, preview = row
+                recid, target, thumbnail, preview = row
                 if (thumbnail[0:15] == '/home/nas/Eagle'):
                     thumbnail = thumbnail[10:]
                 pic = dict()
                 pic["id"] = "{}_{:03d}".format(prefix, sequence)
                 pic["recid"] = recid
                 pic["title"] = target
-                if (altname):
-                    pic["title"] += " ({})".format(altname)
                 pic["src"] = thumbnail
                 pic["preview"] = preview  # Not used cuz I couln't figure out how to sneak it in
                 collection["pics"].append(pic)
