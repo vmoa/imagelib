@@ -75,8 +75,6 @@ if (__name__ == "__main__"):
                     filter TEXT,
                     binning TEXT,
                     exposure REAL,
-                    ra REAL,
-                    dec REAL,
                     x INTEGER,
                     y INTEGER,
                     path TEXT,

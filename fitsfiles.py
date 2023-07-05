@@ -45,8 +45,6 @@ class FitsFiles:
             for hdr in 'NAXIS1', 'NAXIS2', 'EXPTIME', 'IMAGETYP', 'XBINNING', 'YBINNING', 'OBJCTRA', 'OBJCTDEC', 'FILTER', 'OBJECT', 'DATE-OBS':
                 if hdr in list(hdu.header.keys()):
                     headers[hdr] = hdu.header[hdr]
-                else:
-                    print("Failed to parse {} from {}".format(hdr, filename))
 
         return(headers)
 
@@ -69,9 +67,6 @@ class FitsFiles:
             record['binning'] = "{}x{}".format(headers['XBINNING'], headers['YBINNING'])
         if ('EXPTIME' in headers):
             record['exposure'] = headers['EXPTIME']
-        if ('OBJCTRA' in headers and 'OBJCTDEC' in headers):
-            record['ra'] = headers['OBJCTRA']
-            record['dec'] = headers['OBJCTDEC']
         if ('NAXIS1' in headers and 'NAXIS2' in headers):
             record['x'] = headers['NAXIS1']
             record['y'] = headers['NAXIS2']
