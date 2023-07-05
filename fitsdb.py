@@ -69,13 +69,16 @@ if (__name__ == "__main__"):
             cur.execute('''
                 CREATE TABLE fits (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    fndate TEXT,
+                    target TEXT,
+                    date TEXT,
+                    timestamp TEXT,
                     filter TEXT,
                     binning TEXT,
-                    exposure TEXT,
-                    target TEXT,
-                    altname TEXT,
-                    date TEXT,
+                    exposure REAL,
+                    ra REAL,
+                    dec REAL,
+                    x INTEGER,
+                    y INTEGER,
                     path TEXT,
                     preview TEXT,
                     thumbnail TEXT

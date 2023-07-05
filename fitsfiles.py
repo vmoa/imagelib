@@ -9,8 +9,9 @@ import os
 import re
 import sys
 
-import fitsdb
+from astropy.io import fits
 
+import fitsdb
 
 class FitsFiles:
 
@@ -30,126 +31,82 @@ class FitsFiles:
     def __init__(self):
         pass
 
-    def parseFilename(self, filename):
-        '''Parse `filename` and return a dictionary with the deets.'''
-        image = {}
-        name = []
+    def parseFitsHeader(self, filename):
+        '''Parse the salient bits out of the FITS file header.'''
+        with fits.open(filename) as fitsfile:
+            # Find our first HDU with a 2-axis image (see https://docs.astropy.org/en/stable/io/fits/)
+            i = 0
+            for hdu in fitsfile:
+                if (hdu.header['NAXIS'] == 2):
+                    break
+                i += 1
 
-        # First let's strip the .fits
-        filename = os.path.splitext(filename)[0]
-        fn_re = re.compile(' +')
-        fn = fn_re.split(filename)
+            headers = dict()
+            for hdr in 'NAXIS1', 'NAXIS2', 'EXPTIME', 'IMAGETYP', 'XBINNING', 'YBINNING', 'OBJCTRA', 'OBJCTDEC', 'FILTER', 'OBJECT', 'DATE-OBS':
+                if hdr in list(hdu.header.keys()):
+                    headers[hdr] = hdu.header[hdr]
+                else:
+                    print("Failed to parse {} from {}".format(hdr, filename))
 
-        # Work through filename components and see what matches
-        # What doesn't match should be part of the target name
-        for thang in fn:
+        return(headers)
 
-            sequence_re = re.compile('^\d{8}')  # Catches 00000000NoAutoDark, which is probably broken anyway
-            if (sequence_re.match(thang)):
-                continue
+    # Precompile
+    whitespace = re.compile(r'\s+')
 
-            exposure_re = re.compile('^([\d\.]+)secs$')
-            m = exposure_re.search(thang)
-            if (m):
-                image["exposure"] = m.group(0)
-                continue
-
-            binning_re = re.compile('^(\dx\d)$')
-            m = binning_re.fullmatch(thang)
-            if (m):
-                image["binning"] = m.group(0)
-                continue
-
-            filter_re = re.compile('^(LUMEN|B|V|R|I|RED|GREEN|BLUE|HA)$')
-            m = filter_re.fullmatch(thang)
-            if (m):
-                image["filter"] = m.group(0)
-                continue
-
-            datestr_re = re.compile('^(\d{4}-\d{2}-\d{2})$')
-            m = datestr_re.fullmatch(thang)
-            if (m):
-                image["fndate"] = m.group(0)
-                continue
-
-            # Anything left becomes target name
-            name.append(thang)
-
-        # Now assemble the name
-        target = ' '.join(name)
-        if (target in self.ngc_catalog):
-            image["target"] = self.ngc_catalog[target]
-            image["altname"] = target
+    def buildDatabaseRecord(self, filename, headers):
+        '''Translate FITS headers into database record fields.'''
+        print(headers)
+        record = dict()
+        record['path'] = filename
+        if ('OBJECT') in headers:
+            record['target'] = re.sub(self.whitespace, ' ', headers['OBJECT']).strip()
         else:
-            image["target"] = target
+            record['target'] = 'No Target'
+        record['timestamp'] = headers['DATE-OBS']           # ISO 8601 (GMT) eg: 2023-05-20T05:41:18.042
+        record['date'] = datetime.datetime.fromisoformat(headers['DATE-OBS']).strftime('%Y-%m-%d')  # YYYY-MM-DD (GMT) convenient for sorting
+        record['filter'] = headers['FILTER'].strip()
+        record['binning'] = "{}x{}".format(headers['XBINNING'], headers['YBINNING'])
+        record['exposure'] = headers['EXPTIME']
+        record['ra'] = headers['OBJCTRA']
+        record['dec'] = headers['OBJCTDEC']
+        record['x'] = headers['NAXIS1']
+        record['y'] = headers['NAXIS2']
+        return(record)
 
-        return(image)
-
-    def fits2png(self, image):
-        '''Generate png preview and thumbnail images.'''
-        # scaling is how much to reduce our image to get a 128x? thumbnail (or just slightly larger)
-        if ('binning' in image):
-            if (image['binning'] == '4x4'):
-                scaling = 8
-            elif (image['binning'] == '3x3'):
-                scaling = 11
-            elif (image['binning'] == '2x2'):
-                scaling = 17
-            elif (image['binning'] == '1x1'):
-                scaling = 35
-            else:
-                scaling = 35
-        else:
-            scaling = 35
-
-        preview = image["path"][:-5] + '.png'
+    def fits2png(self, record):
+        '''Generate and png preview and thumbnail images; return updated database record.'''
+        preview = record['path'][:-5] + '.png'
         if (self.forcepng or not os.path.exists(preview)):
-            cmd = 'fitspng -o \"{}\" \"{}\"'.format(preview, image["path"])
+            cmd = 'fitspng -o \"{}\" \"{}\"'.format(preview, record['path'])
             os.system(cmd)
+        record['preview'] = preview
 
-        thumb = image["path"][:-5] + '-thumb.png'
+        thumb = record['path'][:-5] + '-thumb.png'
+        scaling = int(record['x'] / 128) + 1    # Reduce our image to get 128x? (or just slightly larger)
         if (self.forcepng or not os.path.exists(thumb)):
-            cmd = 'fitspng -s {} -o \"{}\" \"{}\"'.format(scaling, thumb, image["path"])
+            cmd = 'fitspng -s {} -o \"{}\" \"{}\"'.format(scaling, thumb, record['path'])
             os.system(cmd)
+        record['thumbnail'] = thumb
 
-        return(preview, thumb)
+        return(record)
 
     def findNewFits(self, path, fitsdb):
-        '''Find new FITS files since last time we were run.  Runs the `find` system command on `path` to
-           locate *.fits newer than `ts_file`.
-           TBD: Stash the results in a list and build indexes into the list.'''
+        '''Find new FITS files since last time we were run.  Runs the `find` system command on `path` to locate *.fits newer than `ts_file`.'''
+        start_time = datetime.datetime.now()  # On the off chance new files come in during find
+
+        newer_arg = '';
         if (os.path.exists(fitsdb.tsfile)):
             newer_arg = '-newer ' + fitsdb.tsfile
-        else:
-            newer_arg = '';
-
-        start_time = datetime.datetime.now()  # On the off chance new files come in during find
-        count = 0
-
         find_cmd = "find {} {} -type f -name '*\.fits' -o -name '*\.fit'".format(path, newer_arg)
-        with os.popen(find_cmd) as find_out:
-            for fullpath in find_out:
-                fullpath = fullpath.rstrip()
-                path = fullpath.split('/')
-                filename = path.pop()
 
-                # We're only interested in folders that are dates
-                datestr_re = re.compile("(\d{4}-\d{2}-\d{2})")
-                found = False
-                while (path):
-                    datestr = path.pop()
-                    m = datestr_re.search(datestr)
-                    if (m):
-                        found = True
-                        image = self.parseFilename(filename)
-                        image["date"] = m.group(0)
-                        image["path"] = fullpath
-                        (p,t) = self.fits2png(image)
-                        image['preview'] = p
-                        image['thumbnail'] = t
-                        count += fitsdb.insert(image)
-                if (not found):
-                    print(f"Skipping file: cannot find date: {fullpath}")
+        count = 0
+        with os.popen(find_cmd) as find_out:
+            for filename in find_out:
+                filename = filename.rstrip()
+                headers = self.parseFitsHeader(filename)
+                record = self.buildDatabaseRecord(filename, headers)
+                record = self.fits2png(record)
+                count += fitsdb.insert(record)
 
         # Update the timestamp with our start time, but only if successful
         if (count > 0):
