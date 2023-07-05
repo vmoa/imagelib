@@ -58,13 +58,10 @@ class FitsFiles:
         print(headers)
         record = dict()
         record['path'] = filename
-        if ('OBJECT') in headers:
-            record['target'] = re.sub(self.whitespace, ' ', headers['OBJECT']).strip()
-        else:
-            record['target'] = 'No Target'
+        record['target'] = re.sub(self.whitespace, ' ', headers['OBJECT']).strip()   if ('OBJECT') in headers else 'No Target'
         record['timestamp'] = headers['DATE-OBS']           # ISO 8601 (GMT) eg: 2023-05-20T05:41:18.042
         record['date'] = datetime.datetime.fromisoformat(headers['DATE-OBS']).strftime('%Y-%m-%d')  # YYYY-MM-DD (GMT) convenient for sorting
-        record['filter'] = headers['FILTER'].strip()
+        record['filter'] = headers['FILTER'].strip()   if ('FILTER') in headers else 'Unknown'
         record['binning'] = "{}x{}".format(headers['XBINNING'], headers['YBINNING'])
         record['exposure'] = headers['EXPTIME']
         record['ra'] = headers['OBJCTRA']
