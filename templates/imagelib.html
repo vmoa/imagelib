@@ -18,6 +18,8 @@
                     <input type="hidden" name="recids">
                     <input type="image" border="0" src="static/download.png" height="28" alt="[Download]">
                 </form></span>
+                <span class="right"><img src="static/1x1-transparent.png" width="8" height="1"></span>
+                <span class="right"><image src="static/help.png" height="28" alt="[Help]" onClick="help()"></span>
             </div>
 
             {% for collection in collections %}
@@ -59,7 +61,7 @@
         <div class="preview-container" id="preview-container"> 
             <div class="preview-window" id="preview-window">
                 <div class="preview-header" id="preview-header">
-                    <span class="left" id="preview-filename">Name coming soon</span>
+                    <span class="left" id="preview-filename">Helping myself to help...</span>
                     <span class="right"><span class="button" onClick="closePreview()">&times;</span></span>
                 </div>
                 <div class="preview-content" id="preview-content">
@@ -68,6 +70,22 @@
                 <div class="preview-header" id="preview-footer">
                     <span class="left"><span class="button" onClick="closePreview()">[Close]</span></span>
                     <span class="right"><span class="button" id="preview-select" onClick="TBD()">[Toggle Select]</span></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Help modal (js will hide/unhide) -->
+        <div class="preview-container" id="help-container"> 
+            <div class="preview-window" id="help-window">
+                <div class="preview-header" id="help-header">
+                    <span class="left" id="help-filename">Imagelib Help</span>
+                    <span class="right"><span class="button" onClick="closeHelp()">&times;</span></span>
+                </div>
+                <div class="preview-content" id="help-content">
+                    <span class="help-html" id="help-html"><p>Filled in by Javascript.</p></span>
+                </div>
+                <div class="preview-header" id="help-footer">
+                    <span class="left"><span class="button" onClick="closeHelp()">[Close]</span></span>
                 </div>
             </div>
         </div>

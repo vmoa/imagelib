@@ -75,6 +75,11 @@ div.collection_title {
     font-size: 18px;
 }
 
+.help-html {
+    text-align: left;
+    color: #d9c129;
+}
+
 .collection_title_title {
     color: #d9c129;
     font-size: 24px;

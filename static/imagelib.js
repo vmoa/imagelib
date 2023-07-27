@@ -79,6 +79,11 @@ function keydownHandler(event) {
             toggleSelect(previewElement, -1);
         }
     }
+    if (document.getElementById("help-container").style.display == "block") {
+        if (event.keyCode === 27) {  // <ESC> keycode
+            closeHelp();
+        }
+    }
 }
 
 /* Preview modal: overlays current display with preview png */
@@ -108,5 +113,28 @@ function toggleSelect(el) {
 /* Close the preview modal and return to our regularly scheduled display */
 function closePreview() {
     document.getElementById("preview-container").style.display = "none";
+    document.removeEventListener("keydown", keydownHandler);
+}
+
+/* Help modal: overlays current display with help text */
+function help() {
+    console.log("help()");
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+            console.log("rendering help text")
+            document.getElementById("help-html").innerHTML = xhttp.responseText;
+        }
+    };
+    xhttp.open("GET", "static/help.html", true);
+    console.log("fetching static/help.hmtl");
+    xhttp.send();
+    document.addEventListener("keydown", keydownHandler);
+    document.getElementById("help-container").style.display = "block";
+}
+
+/* Close the help modal and return to our regularly scheduled display */
+function closeHelp() {
+    document.getElementById("help-container").style.display = "none";
     document.removeEventListener("keydown", keydownHandler);
 }
