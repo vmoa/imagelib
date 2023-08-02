@@ -49,6 +49,12 @@ def download():
     return response
     # unlink(tempfn)
 
+@app.route('/deets', methods=['GET'])
+def deets():
+    recid = flask.request.args.get('recid')
+    app.logger.info("DEBUG: deets({})".format(recid))
+    return flask.render_template_string(markup.fetchDeets(recid))
+
 # DEBUG HACK; should make it so Apache deals with this
 @app.route('/fits/<path:path>')
 def fits(path):

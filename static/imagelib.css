@@ -154,6 +154,14 @@ div.tag_centered {
   background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
 }
 
+.preview-deets {
+  color: #d9c129;
+  position: absolute;
+  text-align: left;
+  top: 38px;
+  left: 16px;
+}
+
 .preview-window {
   position: relative;
   left: 5%;

@@ -96,6 +96,23 @@ class Markup:
 
         return(tempfn)
 
+    def fetchDeets(self, recid):
+        '''Return formatted HTML of the FITS details for `recid`.'''
+        tags = ( 'target', 'timestamp', 'filter', 'binning', 'exposure', 'x', 'y' )
+        cur = self.db.con.cursor()
+        sql = "select {} from fits where id = ?".format(', '.join(tags))
+        print(sql)
+        rows = cur.execute(sql, recid)
+
+        deets = '<p><b><u>FITS Details:</u></b></br>\n'
+        for row in rows:
+            x = 0
+            for tag in tags:
+                deets += "<b>{}:</b> {}</br>\n".format(tag, row[x])
+                x += 1
+        deets += '</p>'
+        return(deets)
+
 
 if (__name__ == "__main__"):
 

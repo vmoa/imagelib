@@ -90,15 +90,32 @@ function keydownHandler(event) {
 function preview(el) {
     console.log("preview("+el+")");
     previewElement = el;  /* make available to event handler */
+    var recid = document.getElementById(el).dataset.recid;
     var image = document.getElementById(el+'img');
     var previewWindow = document.getElementById("preview-window");
     var previewImg = document.getElementById("preview-img");
     var preview_src = image.src.replace("-thumb.png", ".png")
+
+    /* Paint our image */
     previewImg.src = preview_src
     previewImg.maxWidth = previewWindow.clientWidth;
     previewImg.maxHeight = previewWindow.clientHeight;
     document.getElementById('preview-filename').innerHTML = basename(preview_src).replaceAll("%20", " ");
     document.getElementById("preview-content").style.borderColor = document.getElementById(el).rfoIsSelected ? color_selected : color_unselected;
+
+    /* Fetch the deets, with a callback to paint them */
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+            console.log("rendering deets")
+            document.getElementById("preview-deets").innerHTML = xhttp.responseText;
+        }
+    };
+    xhttp.open("GET", "/deets?recid="+recid, true);
+    console.log("fetching /deets?recid="+recid);
+    xhttp.send();
+
+    /* Enable keyboard shortcuts */
     document.getElementById("preview-select").setAttribute("onclick","toggleSelect('" + el + "',-1)")
     document.addEventListener("keydown", keydownHandler);
     document.getElementById("preview-container").style.display = "block";
