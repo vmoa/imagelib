@@ -42,6 +42,7 @@ class Fitsdb:
 
         cur = self.con.cursor()
         sql = 'insert into fits ({}) values ({})'.format(', '.join(cols), questionmarks)
+        # print(">>> {} WITH {}".format(sql, vals)) ###DEBUG
         try:
             cur.execute(sql, vals)
             self.con.commit()
@@ -50,6 +51,7 @@ class Fitsdb:
             return(0)
 
         return(1)
+
 
 
 # Stand-alone adminy stuff
