@@ -84,7 +84,10 @@ class FitsFiles:
         scaling = int(record['x'] / 128) + 1    # Reduce our image to get 128x? (or just slightly larger)
         if (self.forcepng or not os.path.exists(thumb)):
             cmd = 'fitspng -s {} -o \"{}\" \"{}\"'.format(scaling, thumb, record['path'])
+            print(">>> {}".format(cmd))  ###DEBUG
             os.system(cmd)
+        else:
+            print("    Thumb already exists: {}".format(thumb))  ###DEBUG
         record['thumbnail'] = thumb
 
         return(record)
@@ -97,11 +100,13 @@ class FitsFiles:
         if (os.path.exists(fitsdb.tsfile)):
             newer_arg = '-newer ' + fitsdb.tsfile
         find_cmd = "find {} {} -type f -name '*\.fits' -o -name '*\.fit'".format(path, newer_arg)
+        print(">>> {}".format(find_cmd))   ###DEBUG
 
         count = 0
         with os.popen(find_cmd) as find_out:
             for filename in find_out:
                 filename = filename.rstrip()
+                print("Importing {}".format(filename))   ###DEBUG
                 headers = self.parseFitsHeader(filename)
                 record = self.buildDatabaseRecord(filename, headers)
                 record = self.fits2png(record)
