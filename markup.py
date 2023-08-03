@@ -101,8 +101,8 @@ class Markup:
         tags = ( 'target', 'timestamp', 'filter', 'binning', 'exposure', 'x', 'y' )
         cur = self.db.con.cursor()
         sql = "select {} from fits where id = ?".format(', '.join(tags))
-        print(sql)
-        rows = cur.execute(sql, recid)
+        # print(">>> {} WITH {}".format(sql, recid))  ###DEBUG
+        rows = cur.execute(sql, (recid,))
 
         deets = '<p><b><u>FITS Details:</u></b></br>\n'
         for row in rows:
