@@ -78,6 +78,13 @@ python3 ./__init__.py
 sudo apachectl reload
 ```
 
+## Debugging
+
+* Run by hand
+
+```
+flask --debug --app __init__.py run
+```
 
 
 ## Thoughts
