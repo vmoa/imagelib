@@ -46,6 +46,12 @@
             {% endfor %}
 
             <div class="page_footer_bar" id="page_footer_bar">
+                {% if prev %}
+                    <form id="prev" method="post" action="/">
+                    <input type="hidden" name="start" value="{{ prev }}">
+                    <span class="left"><input type="image" border="0" src="static/prev.png" height="28" alt="[Prev]"></span>
+                    </form>
+                {% endif %}
                 {% if next %}
                     <form id="next" method="post" action="/">
                     <input type="hidden" name="start" value="{{ next }}">

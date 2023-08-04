@@ -25,10 +25,7 @@ class Markup:
         '''Build a template (dictionary) of which images to display.'''
         dates = list()
         cur = self.db.con.cursor()
-        if (start):
-            rows = cur.execute("select distinct(date) from fits where date <= ? order by date desc", (start,)).fetchall()
-        else:
-            rows = cur.execute("select distinct(date) from fits order by date desc").fetchall()
+        rows = cur.execute("select distinct(date) from fits order by date desc").fetchall()
         for row in rows:
             dates.append(row[0])
 
@@ -36,8 +33,13 @@ class Markup:
         images["title"] = "RFO Image Library: All"
         images["collections"] = list()
 
+        # Figure out where to start if from Prev or Next
+        startX = dates.index(start) if (start) else 0
+        if (startX > 0):
+            images["prev"] = dates[startX - 1]
+
         thumb_count = 0
-        for date in dates:
+        for date in dates[startX:]:
 
             if (thumb_count >= self.thumb_max):
                 images["next"] = date
