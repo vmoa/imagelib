@@ -31,6 +31,7 @@ class Markup:
 
         images = dict()
         images["title"] = "RFO Image Library: All"
+        images["obsDates"] = dates
         images["collections"] = list()
 
         # Figure out where to start if from Prev or Next

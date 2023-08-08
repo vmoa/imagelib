@@ -16,6 +16,10 @@ html, body {
 	float: left;
 }
 
+.date-input {
+    background-color: #D3D3FF;
+}
+
 .container {
     margin: 0;
     padding: 0;
