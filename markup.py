@@ -79,13 +79,13 @@ class Markup:
             for row in rows:
                 thumb_count += 1
                 sequence += 1
-                recid, target, thumbnail, preview = row
+                recid, thisTarget, thumbnail, preview = row
                 if (thumbnail[0:15] == '/home/nas/Eagle'):
                     thumbnail = thumbnail[10:]
                 pic = dict()
                 pic["id"] = "{}_{:03d}".format(prefix, sequence)
                 pic["recid"] = recid
-                pic["title"] = target
+                pic["title"] = thisTarget
                 pic["src"] = thumbnail
                 pic["preview"] = preview  # Not used cuz I couln't figure out how to sneak it in
                 collection["pics"].append(pic)
