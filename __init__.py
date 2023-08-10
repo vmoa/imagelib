@@ -37,7 +37,15 @@ markup = markup.Markup()
 @app.route('/', methods=['GET','POST'])
 def top():
     # print("Args: ", flask.request.args.to_dict(), " Form: ", flask.request.form.to_dict())
-    t = markup.build_images(flask.request.form.get('start'))
+    t = markup.build_images(start = flask.request.form.get('start'), target = flask.request.form.get('target'))
+    return flask.render_template('imagelib.html', **t)
+
+@app.route('/search', methods=['GET','POST'])
+def search():
+    print("Args: ", flask.request.args.to_dict(), " Form: ", flask.request.form.to_dict())
+    target = flask.request.args.get('target')
+    app.logger.info("DEBUG: search target={}".format(target))
+    t = markup.build_images(target = target)
     return flask.render_template('imagelib.html', **t)
 
 @app.route('/download', methods=['GET','POST'])
