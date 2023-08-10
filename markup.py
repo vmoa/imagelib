@@ -21,16 +21,30 @@ class Markup:
     def __init__(self):
         pass
 
-    def build_images(self, start=None):
+    def build_images(self, start=None, target=None):
         '''Build a template (dictionary) of which images to display.'''
+        print("build_images(start={}, target={})".format(start,target))
+        targets = list()
+        cur = self.db.con.cursor()
+        rows = cur.execute("select distinct(target) from fits order by target").fetchall()
+        for row in rows:
+            targets.append(row[0])
+
+        # Recreate a list of dates, restricted by target if specified
         dates = list()
         cur = self.db.con.cursor()
-        rows = cur.execute("select distinct(date) from fits order by date desc").fetchall()
+        if (target):
+            rows = cur.execute("select distinct(date) from fits where target = '{}' order by date desc".format(target)).fetchall()
+        else:
+            rows = cur.execute("select distinct(date) from fits order by date desc").fetchall()
         for row in rows:
             dates.append(row[0])
 
         images = dict()
-        images["title"] = "RFO Image Library: All"
+        images["title"] = "RFO Image Library: {}".format(target if target else 'All')
+        if (target):
+            images["target"] = target
+        images["allTargets"] = targets
         images["obsDates"] = dates
         images["collections"] = list()
 
@@ -46,15 +60,22 @@ class Markup:
                 images["next"] = date
                 break
 
+            if (target):
+                rows = cur.execute("select id, target, thumbnail, preview from fits where date = '{}' and target = '{}' order by id".format(date,target)).fetchall()
+            else:
+                rows = cur.execute("select id, target, thumbnail, preview from fits where date = '{}' order by id".format(date)).fetchall()
+
             collection = dict()
             prefix = "rfo_{}".format(date)
             collection["id"] = prefix
             collection["prefix"] = prefix
-            collection["title"] = date
+            if (target):
+                collection["title"] = "{}: {}".format(target, date)
+            else:
+                collection["title"] = date
             collection["pics"] = list()
 
             sequence = 0
-            rows = cur.execute("select id, target, thumbnail, preview from fits where date = '{}' order by id".format(date)).fetchall()
             for row in rows:
                 thumb_count += 1
                 sequence += 1
