@@ -29,6 +29,7 @@
                     <span class="right"><img src="static/1x1-transparent.png" width="22" height="1"></span>
                     <span class="right">
                         <form id="date" method="post" action="/">
+                        <input type="hidden" name="target" value="{{ target }}">
                         <span class="right"><input type="image" border="0" src="static/search.png" height="28" alt="[Search]"></span>
                         <span style="float:right; padding-top:4px;">
                         Date:&nbsp;<input class="date-input" type="text" name="start" value="{{ date }}" id="date-input">&nbsp;
@@ -37,15 +38,17 @@
                     </span>
                     <span class="right"><img src="static/1x1-transparent.png" width="22" height="1"></span>
                     <span class="right">
-                        <form id="date" method="post" action="/">
+                        <form id="target" method="post" action="/">
+                        <input type="hidden" name="start" value="{{ date }}">
+                        <input type="hidden" name="last_target" value="{{ target }}">
                         <span class="right"><input type="image" border="0" src="static/search.png" height="28" alt="[Search]"></span>
                         <span style="float:right; padding-top:4px;">
                         Target:&nbsp;<input class="awesomplete" style="background-color: #D3D3FF;" name="target" value="{{ target }}" list="mylist" />&nbsp;
                         <datalist id="mylist">
                         {% for target in allTargets %}
-                          <option>{{ target }}</option>
-                        {% endfor %}
+                          <option>{{ target }}</option>{% endfor %}
                         </datalist>
+                        </form>
                     </span>
                 </div>
             </div>

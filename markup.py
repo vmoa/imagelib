@@ -21,14 +21,18 @@ class Markup:
     def __init__(self):
         pass
 
-    def build_images(self, start=None, target=None):
+    def build_images(self, start=None, target=None, lastTarget=None):
         '''Build a template (dictionary) of which images to display.'''
-        print("build_images(start={}, target={})".format(start,target))
+        print(">>> build_images(start={}, target={})".format(start,target))
         targets = list()
         cur = self.db.con.cursor()
         rows = cur.execute("select distinct(target) from fits order by target").fetchall()
         for row in rows:
             targets.append(row[0])
+
+        # Unset date if new target chosen
+        if (lastTarget and lastTarget != target):
+            start = None
 
         # Create a list of dates, restricted by target if specified
         dates = list()
@@ -39,6 +43,8 @@ class Markup:
             rows = cur.execute("select distinct(date) from fits order by date desc").fetchall()
         for row in rows:
             dates.append(row[0])
+        print(">>> dates: {}".format(dates))
+        print(">>> start: {}".format(start))
 
         images = dict()
         images["title"] = "RFO Image Library: {}".format(target if target else 'All')
@@ -52,11 +58,15 @@ class Markup:
         startX = 0
         if (start):
             for date in dates:
-                if (start <= date):
-                    images["date"] = date
+                if (date <= start):
                     break
                 startX += 1
+        if (startX >= len(dates)):
+            print(">>> start date {} not found".format(start))
+            startX = 0
+        print(">>> startX: {}".format(startX))
 
+        images["date"] = dates[startX]
         if (startX > 0):
             images["prev"] = dates[startX - 1]
 
@@ -98,6 +108,10 @@ class Markup:
                 collection["pics"].append(pic)
 
             images["collections"].append(collection)
+
+        for thang in [ 'target', 'date', 'start', 'prev', 'next' ]:
+            if (thang in images):
+                print(">>> images[{}]: {}".format(thang, images[thang]))
 
         # print(json.dumps(images, indent=4))
         return(images)

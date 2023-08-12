@@ -37,7 +37,9 @@ markup = markup.Markup()
 @app.route('/', methods=['GET','POST'])
 def top():
     # print("Args: ", flask.request.args.to_dict(), " Form: ", flask.request.form.to_dict())
-    t = markup.build_images(start = flask.request.form.get('start'), target = flask.request.form.get('target'))
+    t = markup.build_images(start = flask.request.form.get('start'),
+                            target = flask.request.form.get('target'),
+                            lastTarget = flask.request.form.get('last_target'))
     return flask.render_template('imagelib.html', **t)
 
 @app.route('/search', methods=['GET','POST'])
