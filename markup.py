@@ -30,7 +30,7 @@ class Markup:
         for row in rows:
             targets.append(row[0])
 
-        # Recreate a list of dates, restricted by target if specified
+        # Create a list of dates, restricted by target if specified
         dates = list()
         cur = self.db.con.cursor()
         if (target):
@@ -48,8 +48,15 @@ class Markup:
         images["obsDates"] = dates
         images["collections"] = list()
 
-        # Figure out where to start if from Prev or Next
-        startX = dates.index(start) if (start) else 0
+        # Figure out where to start if specified
+        startX = 0
+        if (start):
+            for date in dates:
+                if (start <= date):
+                    images["date"] = date
+                    break
+                startX += 1
+
         if (startX > 0):
             images["prev"] = dates[startX - 1]
 

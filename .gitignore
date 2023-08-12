@@ -8,6 +8,9 @@ fits.db
 fits/
 Eagle/
 
+# Awesomeplete: https://github.com/LeaVerou/awesomplete
+static/awesomplete
+
 twilio.conf
 __pycache__
 *.pyc
