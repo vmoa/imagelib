@@ -99,7 +99,7 @@ class FitsFiles:
         newer_arg = '';
         if (os.path.exists(fitsdb.tsfile)):
             newer_arg = '-newer ' + fitsdb.tsfile
-        find_cmd = "find {} {} -type f -name '*\.fits' -o -name '*\.fit'".format(path, newer_arg)
+        find_cmd = "find {} {} -type f -a \( -name '*\.fits' -o -name '*\.fit' \)".format(path, newer_arg)
         print(">>> {}".format(find_cmd))   ###DEBUG
 
         count = 0
