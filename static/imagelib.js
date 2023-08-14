@@ -9,6 +9,25 @@ var color_downloading  = 'orange';
 /* Element that is currently being previewed (global so that keydownHandler() can access) */
 var previewElement = 0;
 
+/* Initialize awesomeplete dropdowns (https://projects.verou.me/awesomplete/) */
+document.addEventListener("DOMContentLoaded", function() {
+    new Awesomplete(document.getElementById("awesomeDate"), {
+        list: "#datelist",
+        filter: function (text, input) {  /* Constrains match to start of item */
+            return text.indexOf(input) === 0;
+        },
+        maxItems: 25,
+        minChars: 1,
+        sort: false,  /* Preserve sort order we set with SQLite */
+    });
+    new Awesomplete(document.getElementById("awesomeTarget"), {
+        list: "#targetlist",
+        maxItems: 25,
+        minChars: 1,
+    });
+});
+
+
 /* Set `rfoIsSelected` attribute based on mode: 0=none, 1=all, -1=toggle */
 function select(el, mode) {
     /* console.log("select("+el+","+mode+")"); */

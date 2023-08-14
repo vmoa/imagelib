@@ -2,12 +2,10 @@
 <html>
     <head>
         <title>{{ title }}</title>
-        <link rel="stylesheet" href="static/imagelib.css" type="text/css" />
-        <script type="text/javascript" src="static/imagelib.js"></script>
         <link rel="stylesheet" href="static/awesomplete/awesomplete.css" />
         <script src="static/awesomplete/awesomplete.js" async></script>
-        <link href="static/thedatepicker/dist/the-datepicker.css" rel="stylesheet" />
-        <script src="static/thedatepicker/dist/the-datepicker.js"></script>
+        <link rel="stylesheet" href="static/imagelib.css" type="text/css" />
+        <script type="text/javascript" src="static/imagelib.js"></script>
     </head>
 
     <body>
@@ -26,16 +24,23 @@
                 <span class="right"><image src="static/help.png" height="28" alt="[Help]" onClick="help()"></span>
 
                 <div class="right" id="filters">
+
+                    <!-- date -->
                     <span class="right"><img src="static/1x1-transparent.png" width="22" height="1"></span>
                     <span class="right">
                         <form id="date" method="post" action="/">
                         <input type="hidden" name="target" value="{{ target }}">
                         <span class="right"><input type="image" border="0" src="static/search.png" height="28" alt="[Search]"></span>
                         <span style="float:right; padding-top:4px;">
-                        Date:&nbsp;<input class="date-input" type="text" name="start" value="{{ date }}" id="date-input">&nbsp;
+                        Date:&nbsp;<input class="dropdown" id="awesomeDate" name="start" value="{{ date }}" />&nbsp;
+                        <datalist id="datelist">{% for date in obsDates %}
+                          <option>{{ date }}</option>{% endfor %}
+                        </datalist>
                         </span>
                         </form>
                     </span>
+
+                    <!-- target -->
                     <span class="right"><img src="static/1x1-transparent.png" width="22" height="1"></span>
                     <span class="right">
                         <form id="target" method="post" action="/">
@@ -43,13 +48,13 @@
                         <input type="hidden" name="last_target" value="{{ target }}">
                         <span class="right"><input type="image" border="0" src="static/search.png" height="28" alt="[Search]"></span>
                         <span style="float:right; padding-top:4px;">
-                        Target:&nbsp;<input class="awesomplete" style="background-color: #D3D3FF;" name="target" value="{{ target }}" list="mylist" />&nbsp;
-                        <datalist id="mylist">
-                        {% for target in allTargets %}
+                        Target:&nbsp;<input class="dropdown" id="awesomeTarget" name="target" value="{{ target }}" />&nbsp;
+                        <datalist id="targetlist">{% for target in allTargets %}
                           <option>{{ target }}</option>{% endfor %}
                         </datalist>
                         </form>
                     </span>
+
                 </div>
             </div>
 
@@ -134,23 +139,6 @@
                 </div>
             </div>
         </div>
-
-        <!-- Activate the date picker (https://github.com/thedatepicker/thedatepicker) -->
-        <script>
-            var obsDates = [ 
-                {% for date in obsDates %}
-                '{{ date }}',
-                {% endfor %}
-            ];
-            const dateinput = document.getElementById('date-input');
-            const datepicker = new TheDatepicker.Datepicker(dateinput);
-            datepicker.options.setInputFormat('Y-m-d');
-            datepicker.options.addDateAvailabilityResolver(function (date) {
-                return obsDates.includes(date.toISOString().substring(0,10));
-            });
-            datepicker.render();
-
-        </script>
 
     </body>
 </html>
