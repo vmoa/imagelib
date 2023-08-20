@@ -31,40 +31,53 @@ class Catalog:
     
 if (__name__ == "__main__"):
 
-    parser = argparse.ArgumentParser(description='Catalog utilities.')
-    parser.add_argument('--create', '-C', dest='create', action='store_true', help='create the catalog table and import form `--file`')
-    parser.add_argument('--recreate', dest='recreate', action='store_true', help='drop exisint catalog and then recreate (see `--create`')
-    parser.add_argument('--import', '-I', dest='import', action='store_true', help='import catalog data')
-    parser.add_argument('--stats', '-s', dest='stats', action='store_true', help='print catalog statistics')
-    parser.add_argument('--query', '-q', dest='query', action='store', help='look up a catalog entry')
-    parser.add_argument('--file', '-f', dest='catalogfile', action='store', help='catalog input file')
-    args = parser.parse_args()
-    ### print(">>> args: {}".format(vars(args)))
+    # Rolling my own; argparse() just wasn't doing it...
+    prog = os.path.basename(__file__)
+    usage = '''Usage: {} cmd [--options] [arguments]
+        {} create catalog_file      Creates and populates the catalog from `catalog_file`
+        {} recreate catalog_file    Drops existing catalog and recreates (see `create`)
+        {} stats                    Prints some statistics about the catalog
+        {} query [field] term       Looks up `term` in catalog `field` (default: target)
+                                            Fields may be target | type (default: target)'''.format(prog,prog,prog,prog,prog)
+
+    cmd = None
+    args = [ None ]
+    if (len(sys.argv) >= 2):
+        cmd = sys.argv[1]
+    if (len(sys.argv) >= 3):
+        args = sys.argv[2:]
+    print(">>> cmd: {}".format(cmd))
 
     cat = Catalog()
     db = fitsdb.Fitsdb()
 
-    if ('create' in vars(args) or 'recreate' in vars(args)): # args.create or args.recreate):
+    if (cmd == 'create' or cmd == 'recreate'):
 
-        if (not 'catalogfile' in vars(args)):
+        catalogfile = args[0]
+        if (not catalogfile):
             print("Catalog filename needed for creation. (This is probably SAC_DeepSky_VerXX_QCQ.TXT.)")
+            print(usage)
             sys.exit(1)
 
-        file = open(args.catalogfile)
+        file = open(catalogfile)
         cur = db.con.cursor()
 
-        if ('recreate' in vars(args)):
-            sql = 'DROP TABLE catalog'
-            ### print(">>> {}".format(sql))
-            try:
-                cur.execute(sql)
-                db.con.commit()
-            except:
-                print('ERROR: ' + ' '.join(er.args))
-                #if (er.args[0] == 'table catalog already exists'):
-                #    print("HINT: If you really want to recreate it, run `sqlite3 fits.db` and enter:\n  drop table catalog;")
+        if (cmd == 'recreate'):
+            error = None
+            for table in [ 'catalog', 'catalog_by_target' ]:
+                sql = "DROP TABLE {}".format(table)
+                ### print(">>> {}".format(sql))
+                try:
+                    cur.execute(sql)
+                    db.con.commit()
+                    print("Table {} dropped".format(table))
+                except sqlite3.Error as er:
+                    print('ERROR: ' + ' '.join(er.args))
+                    if (er.args[0][0:14] == 'no such table:'):
+                        error = 1
+            if (error):
+                print('You meant maybe `create` instead?')
                 sys.exit(1)
-            print("Table catalog dropped")
 
         # Parse header into a list (and build our qmarks)
         headerline = file.readline().rstrip().replace('"','').lower()
@@ -91,21 +104,26 @@ if (__name__ == "__main__"):
             cur.execute(sql)
             cur.execute("CREATE UNIQUE INDEX catalog_object_index ON catalog (object)")
             cur.execute("CREATE INDEX catalog_type_index ON catalog (type)")
+            cur.execute("CREATE TABLE catalog_by_target ( target TEXT, id INTEGER )")
+            cur.execute("CREATE INDEX catalog_by_target_target_index ON catalog_by_target (target)")
             db.con.commit()
         except sqlite3.Error as er:
             print('ERROR: ' + ' '.join(er.args))
             if (er.args[0] == 'table catalog already exists'):
-                print("HINT: If you really want to recreate it, rerun using `--recreate`")
+                print("HINT: If you really want to recreate it, rerun using `recreate`")
             sys.exit(1)
 
-        print("Table catalog created")
+        print("Tables catalog, catalog_by_target created")
 
         # Insert data
         linenum = 1  # We already processed header
-        insert = 0
+        insertCount = 0
+        aliasCount = 0
         datalines = file.readlines()
         for dataline in datalines:
             linenum += 1
+
+            # Twiddle the data
             ### print(">>> dataline: {}".format(dataline))
             data = list()
             for d in dataline.rstrip().split('","'):
@@ -115,29 +133,51 @@ if (__name__ == "__main__"):
                 print("Not enough fields at line {}; skipping (found {} expected {})".format(linenum, len(data), len(header)))
                 next
 
+            # Insert into catalog
             sql = 'INSERT INTO catalog ({}) VALUES ({})'.format(','.join(header), ','.join(qmarks))
             ### print(">>> {}".format(sql))
             try:
                 cur.execute(sql, data)
-                insert += 1
+                # db.con.commit()
+                id = cur.lastrowid
+                insertCount += 1
             except sqlite3.Error as er:
                 if (er.args[0] == 'UNIQUE constraint failed: catalog.object'):
                     print("Duplicate {} entry found at line {}; skipping".format(data[0], linenum))
-                    insert -= 1
+                    insertCount -= 1
                 else:
                     print('ERROR: ' + ' '.join(er.args))
                     sys.exit(1)
 
+            # Add lookup data
+            targets = [ data[0] ]           # [0] is object
+            for alt in data[1].split(';'):  # [1] is `other` name(s) for object
+                targets.append(alt)
+            for target in targets:
+                if (target):
+                    sql = "insert into catalog_by_target (target, id) values (?,?)"
+                    print(">>> {} {}".format(sql, [ target, id ]))
+                    cur.execute(sql, [ target, id ])
+                    aliasCount += 1
+
         db.con.commit()
-        print("{} catalog entries added".format(insert))
+        print("{} catalog entries added".format(insertCount))
+        print("{} target aliases added".format(aliasCount))
         db.con.close()
         sys.exit()
 
-    elif (args.stats):
+    elif (cmd == 'stats'):
         print("Stats not yet implemented.")
 
-    elif (args.query):
+    elif (cmd == 'query'):
         print("Wuery not yet implemented.")
+        #  object TEXT,
+        #  other TEXT,
+        #  type TEXT,
+        #  con TEXT,
 
     else:
-        print("What do you want to do?")
+        if (cmd):
+            print("{}: unknown command".format(cmd))
+        print(usage)
+        sys.exit(1)
