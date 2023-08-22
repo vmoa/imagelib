@@ -156,7 +156,7 @@ if (__name__ == "__main__"):
             for target in targets:
                 if (target):
                     sql = "insert into catalog_by_target (target, id) values (?,?)"
-                    print(">>> {} {}".format(sql, [ target, id ]))
+                    # print(">>> {} {}".format(sql, [ target, id ]))
                     cur.execute(sql, [ target, id ])
                     aliasCount += 1
 
@@ -167,7 +167,42 @@ if (__name__ == "__main__"):
         sys.exit()
 
     elif (cmd == 'stats'):
-        print("Stats not yet implemented.")
+        cur = db.con.cursor()
+        total_rows = cur.execute("select count(*) from catalog").fetchone()[0]
+        total_aliases = cur.execute("select count(*) from catalog_by_target").fetchone()[0]
+
+        type = dict()
+        sql = 'select type, count(type) from catalog group by 1 order by 2 desc'
+        for row in cur.execute(sql).fetchall():
+            type[row[0]] = row[1]
+
+        con = dict()
+        sql = 'select con, count(con) from catalog group by 1 order by 2 desc'
+        for row in cur.execute(sql).fetchall():
+            con[row[0]] = row[1]
+
+        print("The catalog contains {:,} objects with {:,} aliases".format(total_rows, total_aliases))
+        print("\nThere are {} types of objects:".format(len(type)))
+        x = 0
+        for t,v in type.items():
+            x += 1
+            print("{:-5d} {:10s}".format(v,t), end='')
+            if (x >= 8):
+                print("")
+                x = 0
+        print("")
+
+        print("\nAll {} constellations are represented:".format(len(con)))
+        x = 0
+        for c,v in con.items():
+            x += 1
+            print("{:-5d} {:10s}".format(v,c), end='')
+            if (x >= 8):
+                print("")
+                x = 0
+        print("")
+
+        sys.exit(0)
 
     elif (cmd == 'query'):
         print("Wuery not yet implemented.")
