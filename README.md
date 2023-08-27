@@ -142,3 +142,50 @@ This is the dictionary passed to the template rendering engine.
         ...
     ]
 ```
+
+## FITS header fields
+
+These are (likely) all the header fields we have available.  We only save the ones we deem <i>important</i>
+in the database.
+
+```
+$ fitsheader 'Dark 2x2 120.000secs 00006862.fits'
+# HDU 0 in Dark 2x2 120.000secs 00006862.fits:
+SIMPLE  =                    T / file does conform to FITS standard
+BITPIX  =                   16 / number of bits per data pixel
+NAXIS   =                    2 / number of data axes
+NAXIS1  =                 2249 / length of data axis 1
+NAXIS2  =                 1799 / length of data axis 2
+EXTEND  =                    T / FITS dataset may contain extensions
+COMMENT   FITS (Flexible Image Transport System) format is defined in 'Astronomy
+COMMENT   and Astrophysics', volume 376, page 359; bibcode: 2001A&A...376..359H
+BZERO   =                32768 / offset data range to that of unsigned short
+BSCALE  =                    1 / default scaling factor
+SBUUID  = '{504c0794-e3f8-41a2-9e7c-6820ea33c6cb}' / Photo UUID
+EXPTIME =                 120. / SBIGFITSEXT Total exposure time in seconds
+SWCREATE= 'TheSkyX Version 10.5.0 Build 12978' / SBIGFITSEXT Name & version of s
+COLORCCD=                    0 / Non zero if image is from a Bayer color ccd
+DISPINCR=                    1 / Non zero to automatically display the image in
+PICTTYPE=                    3 / Image type as index 0= Unknown 1=Light, 2=Bias,
+IMAGETYP= 'Dark Frame'         / SBIGFITSEXT Light, Dark, Bias or Flat
+XORGSUBF=                    0 / SBIGFITSEXT Subframe x upper-left pixel in bin
+YORGSUBF=                    0 / SBIGFITSEXT Subframe y upper-left pixel in bin
+XBINNING=                    2 / SBIGFITSEXT Binning factor in width
+YBINNING=                    2 / SBIGFITSEXT Binning factor in height
+CCD-TEMP=               -20.02 / SBIGFITSEXT Temperature of the CCD
+SET-TEMP=                 -20. / SBIGFITSEXT The cooler setpoint in degrees C
+SITELAT = '+38 26 18.00'       / SBIGFITSEXT Latitude of the imaging location
+SITELONG= '+122 30 31.00'      / SBIGFITSEXT Longitude of the imaging location
+LST     = '+16 02 59.58'       / Local sidereal time
+OBSGEO-B=        38.4383333333 / Latitude of the observation in degrees, North +
+OBSGEO-L=      -122.5086111111 / Longitude of the observation in degrees, East +
+OBSGEO-H=                 389. / Altitude of the observation in meters
+OBJCTRA = '14 45 19.847'       / SBIGFITSEXT The right ascension of the center o
+OBJCTDEC= '+38 15 59.60'       / SBIGFITSEXT The declination of the center of th
+OBJECT  = 'A       '           / SBIGFITSEXT The name of the object imaged
+INSTRUME= 'ASCOM Camera'       / SBIGFITSEXT The model camera used.
+XPIXSZ  =                  12. / SBIGFITSEXT Pixel width in microns after binnin
+YPIXSZ  =                  12. / SBIGFITSEXT Pixel height in microns after binni
+DATE-OBS= '2023-08-15T02:40:00.466' / SBIGFITSEXT UTC of start exp. in ISO 8601
+LOCALTIM= '8/14/2023 07:40:00.470 PM DST' / Local time at exposure start
+```
