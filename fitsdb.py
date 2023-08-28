@@ -66,12 +66,18 @@ if (__name__ == "__main__"):
     if (command == 'create'):
 
         # Intentionally fail if table exists
+        # Most fields are FITS header fields, or based on them, excpet:
+        #   `target` is a derived field; either calibration frame or catalog.cname()
+        #   `path` is the filesystem path to the fits file
+        #   `preview` is the filesystem path to the full scale png preview file
+        #   `thumbnail` is the filesystem path to the scaled thumbnail png file
         cur = db.con.cursor()
         try:
             cur.execute('''
                 CREATE TABLE fits (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     target TEXT,
+                    object TEXT,
                     date TEXT,
                     timestamp TEXT,
                     filter TEXT,
@@ -92,6 +98,25 @@ if (__name__ == "__main__"):
         cur.execute("CREATE INDEX fits_date_name_index ON fits (date, target)")
         cur.execute("CREATE INDEX fits_name_date_index ON fits (target, date)")
         db.con.commit()
+
+        try:
+            cur.execute('''
+                CREATE TABLE fits_by_target (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    target TEXT,
+                    date TEXT,
+                    fits_id INTEGER,
+                    FOREIGN KEY(fits_id) REFERENCES fits(id)
+                )
+            ''')
+        except sqlite3.Error as er:
+            print('ERROR: ' + ' '.join(er.args))
+            sys.exit(1)
+
+        cur.execute("CREATE INDEX fits_by_target_target ON fits_by_target (target)")
+        cur.execute("CREATE INDEX fits_by_target_target_date ON fits_by_target (target, date)")
+        db.con.commit()
+
         db.con.close()
         sys.exit()
 
