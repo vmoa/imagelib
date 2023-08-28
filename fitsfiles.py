@@ -11,6 +11,7 @@ import sys
 
 from astropy.io import fits
 
+import catalog
 import fitsdb
 
 class FitsFiles:
@@ -22,10 +23,17 @@ class FitsFiles:
 
     forcepng = False
 
-    # Build this from file?
-    ngc_catalog = {
-        'NGC 1952': 'M1',
-        'NGC 5457': 'M101',
+    # Calibration Frame Map of FITS lower(`IMAGETYP`) --> `target` name
+    CFrames = {
+        'dark frame':   'Dark Frame',
+        'dark field':   'Dark Frame',
+        'dark':         'Dark Frame',
+        'bias frame':   'Bias Frame',
+        'bias field':   'Bias Frame',
+        'bias':         'Bias Frame',
+        'flat frame':   'Flat Frame',
+        'flat field':   'Flat Frame',
+        'flat':         'Flat Frame',
     }
 
     def __init__(self):
@@ -55,10 +63,19 @@ class FitsFiles:
         '''Translate FITS headers into database record fields.'''
         record = dict()
         record['path'] = filename
+
         if ('OBJECT') in headers:
-            record['target'] = re.sub(self.whitespace, ' ', headers['OBJECT']).strip()
+            record['object'] = re.sub(self.whitespace, ' ', headers['OBJECT']).strip()
         else:
-            record['target'] = 'No Target'
+            record['object'] = 'No Target'
+
+        # Set `target` based on calibration frame or `cname` (defaults to `object`)
+        ### print(">>> IMAGETYP: <{}>".format(headers['IMAGETYP'].lower()))
+        if ('IMAGETYP' in headers and headers['IMAGETYP'].lower() in self.CFrames.keys()):
+            record['target'] = "{} {}s".format(self.CFrames[headers['IMAGETYP'].lower()], int(headers['EXPTIME']))
+        else:
+            record['target'] = catalog.Catalog.cname(record['object'])
+
         record['timestamp'] = headers['DATE-OBS']           # ISO 8601 (GMT) eg: 2023-05-20T05:41:18.042
         record['date'] = datetime.datetime.fromisoformat(headers['DATE-OBS']).strftime('%Y-%m-%d')  # YYYY-MM-DD (GMT) convenient for sorting
         if ('FILTER') in headers:
@@ -84,7 +101,7 @@ class FitsFiles:
         scaling = int(record['x'] / 128) + 1    # Reduce our image to get 128x? (or just slightly larger)
         if (self.forcepng or not os.path.exists(thumb)):
             cmd = 'fitspng -s {} -o \"{}\" \"{}\"'.format(scaling, thumb, record['path'])
-            print(">>> {}".format(cmd))  ###DEBUG
+            ### print(">>> {}".format(cmd))  ###DEBUG
             os.system(cmd)
         else:
             print("    Thumb already exists: {}".format(thumb))  ###DEBUG
@@ -100,7 +117,7 @@ class FitsFiles:
         if (os.path.exists(fitsdb.tsfile)):
             newer_arg = '-newer ' + fitsdb.tsfile
         find_cmd = "find {} {} -type f -a \( -name '*\.fits' -o -name '*\.fit' \)".format(path, newer_arg)
-        print(">>> {}".format(find_cmd))   ###DEBUG
+        ### print(">>> {}".format(find_cmd))   ###DEBUG
 
         count = 0
         with os.popen(find_cmd) as find_out:
