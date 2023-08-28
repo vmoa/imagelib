@@ -13,13 +13,25 @@ import sys
 
 import fitsdb
 
-class Catalog:
+# Original thoughts on CNAME
+#               (1) the Messier number (based on finding `object` in the SAC catalog)
+#               (2) the SAC catalog `object`
+#               (3) a meta-image-type name (eg: dark, bias, light, etc)
+#               (4) whatever is in the fits `object` field'''
 
-    pass
+class Catalog:
 
     re_left   = re.compile('^[ "]+')   # Leading space or quote
     re_right  = re.compile('[ "]+$')   # Trailing space or quote
     re_center = re.compile(' +')       # Multispace sequences
+
+    re_messier = re.compile('^M \d+$')
+
+    db = fitsdb.Fitsdb()
+
+    def init(self):
+        ### print(">>> Connecting to database")
+        self.db = fitsdb.Fitsdb()
 
     @classmethod
     def prettyspace(cls, string):
@@ -28,7 +40,22 @@ class Catalog:
         string = re.sub(cls.re_center, ' ', string)
         return(string)
 
-    
+    @classmethod
+    def cname(cls, object):
+        '''Return the canonical name for `object`.'''
+        ### print(">>> cname({})".format(object))
+        if (not cls.db):
+            cls.__init__()
+        cur = cls.db.con.cursor()
+        sql = "select cname from catalog_by_target where target = ?"
+        ### print(">>> {} WITH {}".format(sql, object)) ###DEBUG
+        row = cur.execute(sql, [ object ]).fetchone()
+        if (row):
+            return(row[0])
+        else:
+            return(object)
+
+
 if (__name__ == "__main__"):
 
     # Rolling my own; argparse() just wasn't doing it...
@@ -46,7 +73,7 @@ if (__name__ == "__main__"):
         cmd = sys.argv[1]
     if (len(sys.argv) >= 3):
         args = sys.argv[2:]
-    print(">>> cmd: {}".format(cmd))
+    ### print(">>> cmd: {}".format(cmd))
 
     cat = Catalog()
     db = fitsdb.Fitsdb()
@@ -104,8 +131,9 @@ if (__name__ == "__main__"):
             cur.execute(sql)
             cur.execute("CREATE UNIQUE INDEX catalog_object_index ON catalog (object)")
             cur.execute("CREATE INDEX catalog_type_index ON catalog (type)")
-            cur.execute("CREATE TABLE catalog_by_target ( target TEXT, id INTEGER )")
+            cur.execute("CREATE TABLE catalog_by_target ( target TEXT, id INTEGER, cname TEXT )")
             cur.execute("CREATE INDEX catalog_by_target_target_index ON catalog_by_target (target)")
+            cur.execute("CREATE INDEX catalog_by_target_id_index ON catalog_by_target (id)")
             db.con.commit()
         except sqlite3.Error as er:
             print('ERROR: ' + ' '.join(er.args))
@@ -149,15 +177,24 @@ if (__name__ == "__main__"):
                     print('ERROR: ' + ' '.join(er.args))
                     sys.exit(1)
 
-            # Add lookup data
+            # Get all our possible names
             targets = [ data[0] ]           # [0] is object
             for alt in data[1].split(';'):  # [1] is `other` name(s) for object
                 targets.append(alt)
+
+            # Figure out canonical name
+            cname = data[0]                 # default to `object`
+            for target in targets:
+                if (cat.re_messier.match(target)):
+                    cname = target          # override with Messier
+                    break
+
+            # Add all our names to lookup table
             for target in targets:
                 if (target):
-                    sql = "insert into catalog_by_target (target, id) values (?,?)"
-                    # print(">>> {} {}".format(sql, [ target, id ]))
-                    cur.execute(sql, [ target, id ])
+                    sql = "insert into catalog_by_target (target, id, cname) values (?,?,?)"
+                    ### print(">>> {} {}".format(sql, [ target, id, cname ]))
+                    cur.execute(sql, [ target, id, cname ])
                     aliasCount += 1
 
         db.con.commit()
