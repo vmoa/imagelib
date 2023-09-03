@@ -138,7 +138,7 @@ class Markup:
             for row in rows:
                 id, path = row
                 zip.write(path, arcname=os.path.basename(path))
-
+        zip.close()
         return(tempfn)
 
     def fetchDeets(self, recid):
