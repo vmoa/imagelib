@@ -65,6 +65,10 @@ def deets():
     app.logger.info("DEBUG: deets({})".format(recid))
     return flask.render_template_string(markup.fetchDeets(recid))
 
+@app.route('/favicon.ico')
+def favicon():
+    return flask.send_file('static/dob16.png')
+
 # DEBUG HACK; should make it so Apache deals with this
 @app.route('/fits/<path:path>')
 def fits(path):
