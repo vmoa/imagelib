@@ -189,11 +189,11 @@ div.tag_centered {
   background-color: #545353;
   margin: auto;
   padding: 2px;
-  height: 54px;
   border: 5px solid #545353;
   width: 100%;
   height: 100%;
   text-align: center;
+  overflow-y: auto;
 }
 
 .preview-img {
