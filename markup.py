@@ -118,6 +118,7 @@ class Markup:
 
     def zipit(self, recidstr):
         '''Query the database for specified record IDs, zip up the fits files and return zip file path.'''
+        print(">>> zipit({})".format(recidstr))
         recids = recidstr.split(',')
         qmarks = list()
         for x in recids:
@@ -126,7 +127,9 @@ class Markup:
 
         cur = self.db.con.cursor()
         sql = "select id, path from fits where id in ({}) order by id".format(questionmarks)
+        print(">>> {} [{}]".format(sql,recids))
         rows = cur.execute(sql, recids)
+        print(">>> returned {} rows".format(rows.rowcount))
 
         # Experiments show that at compressionlevel=1, the zip file is 3% larger than at =9, but 9 takes 5 times as long
         self.sequence += 1
@@ -136,9 +139,11 @@ class Markup:
             os.remove(tempfn)
         with zipfile.ZipFile(tempfn, mode='x', compression=zipfile.ZIP_DEFLATED, compresslevel=1) as zip:
             for row in rows:
+                print(">>> adding {}".format(row))
                 id, path = row
                 zip.write(path, arcname=os.path.basename(path))
         zip.close()
+        print(">>> return({})".format(tempfn))
         return(tempfn)
 
     def fetchDeets(self, recid):
