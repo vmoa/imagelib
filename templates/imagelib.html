@@ -16,7 +16,7 @@
                 <span class="page_title_title">{{ title }}</span>
                 <span class="right"><a href='/' alt='Home'><image src="static/home.png" height="28" alt="[Home]"></a></span>
                 <span class="right"><img src="static/1x1-transparent.png" width="8" height="1"></span>
-                <span class="right"><form name="dlform" method="POST" onSubmit="setRecids();" action="/download">
+                <span class="right"><form name="dlform" method="POST" onSubmit="return(setRecids());" action="/download">
                     <input type="hidden" name="recids">
                     <input type="image" border="0" src="static/download.png" height="28" alt="[Download]">
                 </form></span>

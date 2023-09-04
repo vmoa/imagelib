@@ -69,18 +69,36 @@ function recolorSelect() {
 /* Onclick() function for download button: fill in the `recids` form field based on `rfoIsSelected` before submitting form */
 function setRecids() {
     console.log("setRecids()");
-    var dlist = [];
+    var dlist = [];  /* List of recids to download */
+    var tlist = [];  /* List of thumb indexes to deselect after user confirms */
     var thumbs = document.getElementsByClassName('thumb');
     for (let i=0; i < thumbs.length; i++) {
         if (thumbs[i].rfoIsSelected) {
             dlist.push(thumbs[i].dataset.recid);
-            thumbs[i].rfoIsSelected = 0;
-            thumbs[i].style.borderColor = color_downloading;
+            tlist.push(i);
+            thumbs[i].style.borderColor = color_downloading;  /* Timing issue with blocking confirm() below */
         }
     }
     console.log("recids=" + dlist.join(","));
-    document.dlform.recids.value = dlist.join(",");
-    setTimeout(recolorSelect, 2000)
+    if (dlist.length == 0) {
+        alert("Zoinks! You cannot download zero images!")
+        return(false);
+    } else {
+        ret = confirm("Downloading " + dlist.length + " images; this might take a while.")
+        if (ret) {
+            console.log("Download confirmed")
+            document.dlform.recids.value = dlist.join(",");
+            for (let i=0; i < tlist.length; i++) {
+                thumbs[tlist[i]].rfoIsSelected = 0;  /* Deselect */
+            }
+            setTimeout(recolorSelect, 2000);
+            return(true);
+        } else {
+            console.log("Download cancelled")
+            recolorSelect();
+            return(false);
+        }
+    }
 }
 
 /* Reutrn just the filename component of a full path */
