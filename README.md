@@ -31,12 +31,8 @@ Also:
 
 * SQLite3 (which is conveniently built into most Python distributions)
 
-* Awesomplete (by Lea Verou)
-
-```
-cd $src/static
-git clone https://github.com/LeaVerou/awesomplete
-```
+* [Awesomplete](https://projects.verou.me/awesomplete/) (by Lea Verou)
+  * `cd $src/static && git clone https://github.com/LeaVerou/awesomplete`
 
 ## Reset database
 
