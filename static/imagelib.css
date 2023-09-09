@@ -5,7 +5,7 @@
 html, body {
     margin: 0;
     padding: 0;
-    background-color: #4287f5;
+    background-color: #B3B3FF;
 }
 
 .right {
@@ -28,7 +28,7 @@ html, body {
     width: 100%;
     height: 100%;
     overflow: hidden;
-    background-color: #60B3B3;
+    background-color: #B3B3FF;
 }
 
 div.page_title_bar, div.page_footer_bar {
@@ -47,6 +47,10 @@ div.page_title_bar, div.page_footer_bar {
 .page_title_title {
     color: #4287f5;
     font-size: 24px;
+}
+
+.filters {
+    float: right;
 }
 
 /*
