@@ -55,8 +55,25 @@ class Catalog:
         else:
             return(object)
 
+    @classmethod
+    def divine(cls, fn):
+        '''Divine catalog type of `fn`.'''
+        if (sys.file.exists(fn)):
+            if (regex.match('DeepSky', fn)):
+                return('deepsky')
+            elsif (regext.match('star', fn)):
+                return('star')
+            else:
+                print("Cannot divine file type for {}".format(fn))
+                sys.exit(1)
+        else:
+            print("File not found: {}".format(fn))
+            sys.exit(1)
+
 
 if (__name__ == "__main__"):
+
+    catalogs = [ 'deepsky', 'star' ]
 
     # Rolling my own; argparse() just wasn't doing it...
     prog = os.path.basename(__file__)
@@ -66,6 +83,8 @@ if (__name__ == "__main__"):
         {} stats                    Prints some statistics about the catalog
         {} query [field] term       Looks up `term` in catalog `field` (default: target)
                                             Fields may be target | type (default: target)'''.format(prog,prog,prog,prog,prog)
+
+    # prog [re]create /path/to/SAC_DeepSky_VerXX_QCQ.TXT /path/to/'IAU star names - Official IAU Catalog.csv'
 
     cmd = None
     args = [ None ]
@@ -80,18 +99,24 @@ if (__name__ == "__main__"):
 
     if (cmd == 'create' or cmd == 'recreate'):
 
-        catalogfile = args[0]
-        if (not catalogfile):
-            print("Catalog filename needed for creation. (This is probably SAC_DeepSky_VerXX_QCQ.TXT.)")
-            print(usage)
-            sys.exit(1)
-
-        file = open(catalogfile)
-        cur = db.con.cursor()
+        if (len(args) != 2):
+            print("Need to specify both SAC and IAU catalogs (probably SAC_DeepSky_VerXX_QCQ.TXT and IAU-CSN.json)")
+            print($usage)
+            exit(1)
 
         if (cmd == 'recreate'):
-            error = None
-            for table in [ 'catalog', 'catalog_by_target' ]:
+
+            # Confirm input files before dropping tables
+            missing_file = 0
+            for fn in args:
+                if (not os.path.exists(fn)):
+                    print("{}: file not found".format(fn))
+                    missing += 1
+            if (missing_file):
+                sys.exit(1)
+
+            missing_table = 0
+            for table in [ sag_catalog, iau_catalog, catalog_by_target ]:
                 sql = "DROP TABLE {}".format(table)
                 ### print(">>> {}".format(sql))
                 try:
@@ -101,47 +126,101 @@ if (__name__ == "__main__"):
                 except sqlite3.Error as er:
                     print('ERROR: ' + ' '.join(er.args))
                     if (er.args[0][0:14] == 'no such table:'):
-                        error = 1
-            if (error):
+                        missing_table = 1
+            if (missing_table):
                 print('You meant maybe `create` instead?')
                 sys.exit(1)
 
-        # Parse header into a list (and build our qmarks)
-        headerline = file.readline().rstrip().replace('"','').lower()
-        header = list()
-        qmarks = list()
-        for hdr in headerline.split(','):
-            header.append(cat.prettyspace(hdr).replace(' ','_'))  # boo!
-            qmarks.append('?')
-        ### print(">>> headerline: {}$".format(headerline))
-        ### print(">>> header: ({}) {}".format(len(header), header))
-        ### print(">>> qmarks: ({}) {}".format(len(qmarks), qmarks))
+        # Create tables
+        cur = db.con.cursor()
 
-        # Build sql CREATE statement based on columns called out in headerfile
-        # Note that `object`, `other` and `type` have to exist or Bad Things will happen
-        cols = list()
-        cols.append('id INTEGER PRIMARY KEY AUTOINCREMENT')
-        for hdr in header:
-            cols.append('{} TEXT'.format(hdr))
-        sql = 'CREATE TABLE catalog ({}\n)'.format(',\n  '.join(cols))
-        ### print(">>> {}".format(sql))
-
-        # Intentionally fail if table exists
+        # SAG catalog from (LINK)
         try:
-            cur.execute(sql)
-            cur.execute("CREATE UNIQUE INDEX catalog_object_index ON catalog (object)")
-            cur.execute("CREATE INDEX catalog_type_index ON catalog (type)")
-            cur.execute("CREATE TABLE catalog_by_target ( target TEXT, id INTEGER, cname TEXT )")
-            cur.execute("CREATE INDEX catalog_by_target_target_index ON catalog_by_target (target)")
-            cur.execute("CREATE INDEX catalog_by_target_id_index ON catalog_by_target (id)")
+            cur.execute('''
+                sql = 'CREATE TABLE sag_catalog (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    object TEXT,
+                    other TEXT,
+                    type TEXT,
+                    con TEXT,
+                    ra TEXT,
+                    dec TEXT,
+                    mag TEXT,
+                    subr TEXT,
+                    u2k TEXT,
+                    ti TEXT,
+                    size_max TEXT,
+                    size_min TEXT,
+                    pa TEXT,
+                    class TEXT,
+                    nsts TEXT,
+                    brstr TEXT,
+                    bchm TEXT,
+                    ngc_descr TEXT,
+                    notes TEXT
+                )
+            ''')
+            cur.execute("CREATE UNIQUE INDEX sqg_catalog_object_index ON catalog (object)")
+            cur.execute("CREATE INDEX sqg_catalog_type_index ON catalog (type)")
             db.con.commit()
         except sqlite3.Error as er:
             print('ERROR: ' + ' '.join(er.args))
-            if (er.args[0] == 'table catalog already exists'):
+            if (er.args[0] == 'table sag_catalog already exists'):
                 print("HINT: If you really want to recreate it, rerun using `recreate`")
             sys.exit(1)
+        print("Table sag_catalog created")
 
-        print("Tables catalog, catalog_by_target created")
+        # IAU Named Stars catalog from https://www.iau.org/public/themes/naming_stars/
+        # by way of https://github.com/mirandadam/iau-starnames.git
+        try:
+            cur.execute('''
+                sql = 'CREATE TABLE iau_catalog (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT,
+                    disignation TEXT,
+                    bayer TEXT,
+                    con TEXT,
+                    wds_j TEXT,
+                    mag TEXT,
+                    bnd TEXT,
+                    hip TEXT,
+                    hd TEXT,
+                    ra TEXT,
+                    dec TEXT,
+                    date TEXT,
+                    notes TEXT
+                )
+            ''')
+            cur.execute("CREATE UNIQUE INDEX iau_catalog_bayer_index ON iau_catalog (bayer)")
+            cur.execute("CREATE UNIQUE INDEX iau_catalog_hip_index ON iau_catalog (hip)")
+            db.con.commit()
+        except sqlite3.Error as er:
+            print('ERROR: ' + ' '.join(er.args))
+            if (er.args[0] == 'table iau_catalog already exists'):
+                print("HINT: If you really want to recreate it, rerun using `recreate`")
+            sys.exit(1)
+        print("Table iau_catalog created")
+
+        # Master catalog with several entries referencing specific catalogs
+        try:
+            cur.execute('''
+                sql = 'CREATE TABLE catalog_by_target (
+                    target TEXT,
+                    table TEXT,
+                    id INTEGER,
+                    cname TEXT
+                )
+                cur.execute("CREATE INDEX catalog_by_target_target_index ON catalog_by_target (target)")
+                cur.execute("CREATE INDEX catalog_by_target_table_id_index ON catalog_by_target (table, id)")
+            ''')
+            db.con.commit()
+        except sqlite3.Error as er:
+            print('ERROR: ' + ' '.join(er.args))
+            if (er.args[0] == 'table catalog_by_target already exists'):
+                print("HINT: If you really want to recreate it, rerun using `recreate`")
+            sys.exit(1)
+        print("Table catalog_by_target created")
+
 
         # Insert data
         linenum = 1  # We already processed header
@@ -160,6 +239,8 @@ if (__name__ == "__main__"):
             if (len(data) != len(header)):
                 print("Not enough fields at line {}; skipping (found {} expected {})".format(linenum, len(data), len(header)))
                 next
+
+#&&&&&
 
             # Insert into catalog
             sql = 'INSERT INTO catalog ({}) VALUES ({})'.format(','.join(header), ','.join(qmarks))
