@@ -112,6 +112,9 @@ if (__name__ == "__main__"):
                 if (not os.path.exists(fn)):
                     print("{}: file not found".format(fn))
                     missing += 1
+            sacfile = open(args[0])
+            headerline = file.readline().rstrip().replace('"','').lower()
+            
             if (missing_file):
                 sys.exit(1)
 
@@ -221,8 +224,23 @@ if (__name__ == "__main__"):
             sys.exit(1)
         print("Table catalog_by_target created")
 
+        #
+        # Read SAC data file and insert into table
+        #
 
-        # Insert data
+        sac_catalog = args[0]
+        sac = open(sac_catalog)
+
+        # Parse header into a list (and build our qmarks)
+        headerline = file.readline().rstrip().replace('"','').lower()
+        header = list()
+        qmarks = list()
+        for hdr in headerline.split(','):
+            header.append(cat.prettyspace(hdr).replace(' ','_'))  # boo!
+            qmarks.append('?')
+        ### print(">>> headerline: {}$".format(headerline))
+        ### print(">>> header: ({}) {}".format(len(header), header))
+
         linenum = 1  # We already processed header
         insertCount = 0
         aliasCount = 0
