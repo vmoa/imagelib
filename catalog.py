@@ -27,6 +27,34 @@ class Catalog:
 
     re_messier = re.compile('^M \d+$')
 
+    catalog = {
+        'sag': {
+            'table': 'sag_catalog',
+            'columns': [ 'object', 'other', 'type', 'con', 'ra', 'dec', 'mag', 'subr', 'u2k', 'ti', 'size_max', 'size_min', 'pa',
+                         'class', 'nsts', 'brstr', 'bchm', 'ngc_descr', 'notes'],
+            'qmarks': [],
+            'defname': 0,
+            'othernames': [ 1 ]
+        },
+        'iau': {
+            'table': 'iau_catalog',
+            'columns': [ 'name', 'disignation', 'bayer', 'con', 'wds_j', 'mag', 'bnd', 'hip', 'hd', 'ra', 'dec', 'date', 'notes' ],
+            'qmarks': [],
+            'defname': 0,
+            'othernames': [ 1 ]
+        },
+        'cat': {
+            'table': 'catalog',
+            'columns' = [ 'taget TEXT', 'cname TEXT', 'table TEXT', 'id INTEGER' ],
+            'qmarks': [],
+            'defname': None,
+            'othernames': [ None ]
+        }
+    } &&&&&
+    sag_qmarks  = [ '?' ] * length(sag_columns)
+    iau_qmarks  = [ '?' ] * length(iau_columns)
+    cat_qmarks  = [ '?' ] * length(cat_columns)
+
     db = fitsdb.Fitsdb()
 
     def init(self):
@@ -71,6 +99,166 @@ class Catalog:
             sys.exit(1)
 
 
+
+#
+# Non-class admin methods (or should they be part of class?)
+#
+
+
+def check_catalog_files(args):
+    '''Confirm input files exist before dropping tables.'''
+    missing_file = 0
+    for fn in args:
+        if (not os.path.exists(fn)):
+            print("{}: file not found".format(fn))
+            missing_file += 1
+    if (missing_file):
+        sys.exit(1)
+    return
+
+
+def drop_tables(cur):
+    '''Drop catalog tables.'''
+    missing_table = 0
+    for table in [ sag_catalog, iau_catalog, catalog_by_target ]:
+        sql = "DROP TABLE {}".format(table)
+        ### print(">>> {}".format(sql))
+        try:
+            cur.execute(sql)
+            db.con.commit()
+            print("Table {} dropped".format(table))
+        except sqlite3.Error as er:
+            print('ERROR: ' + ' '.join(er.args))
+            if (er.args[0][0:14] == 'no such table:'):
+                missing_table = 1
+    if (missing_table):
+        print('You meant maybe `create` instead?')
+        sys.exit(1)
+
+
+def create_tables(cur):
+    '''Create catalog tables and indexes.'''
+    # Create SAG catalog from (LINK)
+    sql = "CREATE TABLE sag_catalog (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  {} TEXT\n)".format(' TEXT,\n  '.join(Catalog.sag_columns))
+    print(">>> {}".format(sql))
+    try:
+        cur.execute(sql)
+        cur.execute("CREATE UNIQUE INDEX sqg_catalog_object_index ON catalog (object)")
+        cur.execute("CREATE INDEX sqg_catalog_type_index ON catalog (type)")
+        db.con.commit()
+    except sqlite3.Error as er:
+        print('ERROR: ' + ' '.join(er.args))
+        if (er.args[0] == 'table sag_catalog already exists'):
+            print("HINT: If you really want to recreate it, rerun using `recreate`")
+        sys.exit(1)
+    print("Table sag_catalog created")
+
+    # Create IAU Named Stars catalog from https://www.iau.org/public/themes/naming_stars/
+    # by way of https://github.com/mirandadam/iau-starnames.git
+    sql = "CREATE TABLE iau_catalog (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  {} TEXT\n)".format(' TEXT,\n  '.join(Catalog.iau_columns))
+    print(">>> {}".format(sql))
+    try:
+        cur.execute(sql)
+        cur.execute("CREATE UNIQUE INDEX iau_catalog_bayer_index ON iau_catalog (bayer)")
+        cur.execute("CREATE UNIQUE INDEX iau_catalog_hip_index ON iau_catalog (hip)")
+        db.con.commit()
+    except sqlite3.Error as er:
+        print('ERROR: ' + ' '.join(er.args))
+        if (er.args[0] == 'table iau_catalog already exists'):
+            print("HINT: If you really want to recreate it, rerun using `recreate`")
+        sys.exit(1)
+    print("Table iau_catalog created")
+
+    # Create master catalog with several entries referencing specific catalogs
+    sql = "CREATE TABLE catalog (\n  {}\n)".format(',\n  '.join(Catalog.cat_columns))
+    print(">>> {}".format(sql))
+    try:
+        cur.execute(sql)
+        cur.execute("CREATE INDEX catalog_by_target_target_index ON catalog_by_target (target)")
+        cur.execute("CREATE INDEX catalog_by_target_table_id_index ON catalog_by_target (table, id)")
+        db.con.commit()
+    except sqlite3.Error as er:
+        print('ERROR: ' + ' '.join(er.args))
+        if (er.args[0] == 'table catalog already exists'):
+            print("HINT: If you really want to recreate it, rerun using `recreate`")
+        sys.exit(1)
+    print("Table catalog_by_target created")
+
+
+def populate_table(cur, table, sac_catalog):
+    '''Read SAC data file and insert into table.'''
+    print("Populating SAG catalog from {}".format(sag_catalog))
+    file = open(sag_catalog)
+
+    # Read and validate headerline
+    headerline = file.readline()
+    if (md5(headerline) != Catalog.sac_md5):
+        print("Uh oh, {} has changed! (found {} expected {})".format(sag_catalog, md5(headerline), Catalog.sac_md5))
+        sys.exit(1)
+
+    linenum = 1  # We already processed header
+    insertCount = 0
+    aliasCount = 0
+    datalines = file.readlines()
+    for dataline in datalines:
+        linenum += 1
+
+        # Twiddle the data
+        ### print(">>> dataline: {}".format(dataline))
+        data = list()
+        for d in dataline.rstrip().split('","'):
+            data.append(cat.prettyspace(d))
+        ### print(">>> data: {}".format(data))
+        if (len(data) != len(Catalog.sag_header)):
+            print("Not enough fields at line {}; skipping (found {} expected {})".format(linenum, len(data), len(header)))
+            next
+
+        # Insert into SAG catalog
+        sql = 'INSERT INTO sag_catalog ({}) VALUES ({})'.format(','.join(Catalog.sag_header), ','.join(Catalog.sag_qmarks))
+        ### print(">>> {}".format(sql))
+        try:
+            cur.execute(sql, data)
+            # db.con.commit()
+            id = cur.lastrowid
+            insertCount += 1
+        except sqlite3.Error as er:
+            if (er.args[0] == 'UNIQUE constraint failed: catalog.object'):
+                print("Duplicate {} entry found at line {}; skipping".format(data[0], linenum))
+                insertCount -= 1
+            else:
+                print('ERROR: ' + ' '.join(er.args))
+                sys.exit(1)
+
+        # Get all our possible names
+        targets = [ data[0] ]           # [0] is object
+        for alt in data[1].split(';'):  # [1] is `other` name(s) for object
+            targets.append(alt)
+
+        # Figure out canonical name
+        cname = data[0]                 # default to `object`
+        for target in targets:
+            if (cat.re_messier.match(target)):
+                cname = target          # override with Messier
+                break
+
+        # Add all our names to lookup table
+        for target in targets:
+            if (target):
+                sql = "insert into catalog (target, cname, table, id) values (?,?,?,?)"
+                ### print(">>> {} {}".format(sql, [ target, cname, 'sag_catalog', id ]))
+                cur.execute(sql, [ target, cname, 'sag_catalog', id ])
+                aliasCount += 1
+
+        db.con.commit()
+        print("{} catalog entries added".format(insertCount))
+        print("{} target aliases added".format(aliasCount))
+        db.con.close()
+
+
+#
+# Admin interface
+#
+
 if (__name__ == "__main__"):
 
     catalogs = [ 'deepsky', 'star' ]
@@ -104,202 +292,14 @@ if (__name__ == "__main__"):
             print($usage)
             exit(1)
 
-        if (cmd == 'recreate'):
-
-            # Confirm input files before dropping tables
-            missing_file = 0
-            for fn in args:
-                if (not os.path.exists(fn)):
-                    print("{}: file not found".format(fn))
-                    missing += 1
-            sacfile = open(args[0])
-            headerline = file.readline().rstrip().replace('"','').lower()
-            
-            if (missing_file):
-                sys.exit(1)
-
-            missing_table = 0
-            for table in [ sag_catalog, iau_catalog, catalog_by_target ]:
-                sql = "DROP TABLE {}".format(table)
-                ### print(">>> {}".format(sql))
-                try:
-                    cur.execute(sql)
-                    db.con.commit()
-                    print("Table {} dropped".format(table))
-                except sqlite3.Error as er:
-                    print('ERROR: ' + ' '.join(er.args))
-                    if (er.args[0][0:14] == 'no such table:'):
-                        missing_table = 1
-            if (missing_table):
-                print('You meant maybe `create` instead?')
-                sys.exit(1)
-
-        # Create tables
         cur = db.con.cursor()
+        if (cmd == 'recreate'):
+            check_catalog_files(args)
+            drop_tables(cur)
 
-        # SAG catalog from (LINK)
-        try:
-            cur.execute('''
-                sql = 'CREATE TABLE sag_catalog (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    object TEXT,
-                    other TEXT,
-                    type TEXT,
-                    con TEXT,
-                    ra TEXT,
-                    dec TEXT,
-                    mag TEXT,
-                    subr TEXT,
-                    u2k TEXT,
-                    ti TEXT,
-                    size_max TEXT,
-                    size_min TEXT,
-                    pa TEXT,
-                    class TEXT,
-                    nsts TEXT,
-                    brstr TEXT,
-                    bchm TEXT,
-                    ngc_descr TEXT,
-                    notes TEXT
-                )
-            ''')
-            cur.execute("CREATE UNIQUE INDEX sqg_catalog_object_index ON catalog (object)")
-            cur.execute("CREATE INDEX sqg_catalog_type_index ON catalog (type)")
-            db.con.commit()
-        except sqlite3.Error as er:
-            print('ERROR: ' + ' '.join(er.args))
-            if (er.args[0] == 'table sag_catalog already exists'):
-                print("HINT: If you really want to recreate it, rerun using `recreate`")
-            sys.exit(1)
-        print("Table sag_catalog created")
-
-        # IAU Named Stars catalog from https://www.iau.org/public/themes/naming_stars/
-        # by way of https://github.com/mirandadam/iau-starnames.git
-        try:
-            cur.execute('''
-                sql = 'CREATE TABLE iau_catalog (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT,
-                    disignation TEXT,
-                    bayer TEXT,
-                    con TEXT,
-                    wds_j TEXT,
-                    mag TEXT,
-                    bnd TEXT,
-                    hip TEXT,
-                    hd TEXT,
-                    ra TEXT,
-                    dec TEXT,
-                    date TEXT,
-                    notes TEXT
-                )
-            ''')
-            cur.execute("CREATE UNIQUE INDEX iau_catalog_bayer_index ON iau_catalog (bayer)")
-            cur.execute("CREATE UNIQUE INDEX iau_catalog_hip_index ON iau_catalog (hip)")
-            db.con.commit()
-        except sqlite3.Error as er:
-            print('ERROR: ' + ' '.join(er.args))
-            if (er.args[0] == 'table iau_catalog already exists'):
-                print("HINT: If you really want to recreate it, rerun using `recreate`")
-            sys.exit(1)
-        print("Table iau_catalog created")
-
-        # Master catalog with several entries referencing specific catalogs
-        try:
-            cur.execute('''
-                sql = 'CREATE TABLE catalog_by_target (
-                    target TEXT,
-                    table TEXT,
-                    id INTEGER,
-                    cname TEXT
-                )
-                cur.execute("CREATE INDEX catalog_by_target_target_index ON catalog_by_target (target)")
-                cur.execute("CREATE INDEX catalog_by_target_table_id_index ON catalog_by_target (table, id)")
-            ''')
-            db.con.commit()
-        except sqlite3.Error as er:
-            print('ERROR: ' + ' '.join(er.args))
-            if (er.args[0] == 'table catalog_by_target already exists'):
-                print("HINT: If you really want to recreate it, rerun using `recreate`")
-            sys.exit(1)
-        print("Table catalog_by_target created")
-
-        #
-        # Read SAC data file and insert into table
-        #
-
-        sac_catalog = args[0]
-        sac = open(sac_catalog)
-
-        # Parse header into a list (and build our qmarks)
-        headerline = file.readline().rstrip().replace('"','').lower()
-        header = list()
-        qmarks = list()
-        for hdr in headerline.split(','):
-            header.append(cat.prettyspace(hdr).replace(' ','_'))  # boo!
-            qmarks.append('?')
-        ### print(">>> headerline: {}$".format(headerline))
-        ### print(">>> header: ({}) {}".format(len(header), header))
-
-        linenum = 1  # We already processed header
-        insertCount = 0
-        aliasCount = 0
-        datalines = file.readlines()
-        for dataline in datalines:
-            linenum += 1
-
-            # Twiddle the data
-            ### print(">>> dataline: {}".format(dataline))
-            data = list()
-            for d in dataline.rstrip().split('","'):
-                data.append(cat.prettyspace(d))
-            ### print(">>> data: {}".format(data))
-            if (len(data) != len(header)):
-                print("Not enough fields at line {}; skipping (found {} expected {})".format(linenum, len(data), len(header)))
-                next
-
-#&&&&&
-
-            # Insert into catalog
-            sql = 'INSERT INTO catalog ({}) VALUES ({})'.format(','.join(header), ','.join(qmarks))
-            ### print(">>> {}".format(sql))
-            try:
-                cur.execute(sql, data)
-                # db.con.commit()
-                id = cur.lastrowid
-                insertCount += 1
-            except sqlite3.Error as er:
-                if (er.args[0] == 'UNIQUE constraint failed: catalog.object'):
-                    print("Duplicate {} entry found at line {}; skipping".format(data[0], linenum))
-                    insertCount -= 1
-                else:
-                    print('ERROR: ' + ' '.join(er.args))
-                    sys.exit(1)
-
-            # Get all our possible names
-            targets = [ data[0] ]           # [0] is object
-            for alt in data[1].split(';'):  # [1] is `other` name(s) for object
-                targets.append(alt)
-
-            # Figure out canonical name
-            cname = data[0]                 # default to `object`
-            for target in targets:
-                if (cat.re_messier.match(target)):
-                    cname = target          # override with Messier
-                    break
-
-            # Add all our names to lookup table
-            for target in targets:
-                if (target):
-                    sql = "insert into catalog_by_target (target, id, cname) values (?,?,?)"
-                    ### print(">>> {} {}".format(sql, [ target, id, cname ]))
-                    cur.execute(sql, [ target, id, cname ])
-                    aliasCount += 1
-
-        db.con.commit()
-        print("{} catalog entries added".format(insertCount))
-        print("{} target aliases added".format(aliasCount))
-        db.con.close()
+        create_tables(cur)
+        populate_sac_table(cur, args[0])
+        populate_iau_table(cur, args[1])
         sys.exit()
 
     elif (cmd == 'stats'):
