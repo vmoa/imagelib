@@ -55,6 +55,18 @@
                         </form>
                     </span>
 
+                    <!-- possible messages -->
+                    <span class="right"><img src="static/1x1-transparent.png" width="22" height="1"></span>
+                    <span class="right">
+                    {% with messages = get_flashed_messages() %}
+                     {% if messages %}
+                      {% for message in messages %}
+                        <font color="brown">{{ message }}</font>
+                      {% endfor %}
+                     {% endif %}
+                    {% endwith %}
+                    </span>
+
                 </div>
             </div>
 
