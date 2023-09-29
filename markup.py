@@ -39,6 +39,13 @@ class Markup:
         cur = self.db.con.cursor()
         if (target):
             rows = cur.execute("select distinct(date) from fits where target = '{}' order by date desc".format(target)).fetchall()
+            if (len(rows) == 0):
+                flask.flash("Target '{}' not found".format(target))
+                if (lastTarget):
+                    target = lastTarget
+                    rows = cur.execute("select distinct(date) from fits where target = '{}' order by date desc".format(target)).fetchall()
+                else:
+                    rows = cur.execute("select distinct(date) from fits order by date desc").fetchall()
         else:
             rows = cur.execute("select distinct(date) from fits order by date desc").fetchall()
         for row in rows:
