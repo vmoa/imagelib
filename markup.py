@@ -21,47 +21,46 @@ class Markup:
     def __init__(self):
         pass
 
-    def build_images(self, start=None, target=None, lastTarget=None):
-        '''Build a template (dictionary) of which images to display.'''
-        print(">>> build_images(start={}, target={})".format(start,target))
+    def fetchTargets(self, target=None):
+        '''Return list of distinct targets that match, handling empty target and fuzzy matches.'''
+        cur = self.db.con.cursor()
         targets = list()
-        cur = self.db.con.cursor()
-        rows = cur.execute("select distinct(target) from fits order by target").fetchall()
-        for row in rows:
-            targets.append(row[0])
 
-        # Unset date if new target chosen
-        if (lastTarget and lastTarget != target):
-            start = None
-
-        # Create a list of dates, restricted by target if specified
-        dates = list()
-        cur = self.db.con.cursor()
-        if (target):
-            rows = cur.execute("select distinct(date) from fits where target = '{}' order by date desc".format(target)).fetchall()
-            if (len(rows) == 0):
-                flask.flash("Target '{}' not found".format(target))
-                if (lastTarget):
-                    target = lastTarget
-                    rows = cur.execute("select distinct(date) from fits where target = '{}' order by date desc".format(target)).fetchall()
-                else:
-                    rows = cur.execute("select distinct(date) from fits order by date desc").fetchall()
+        if (not target):
+            # All targets
+            cur.execute("select distinct(target) from fits order by target")
         else:
-            rows = cur.execute("select distinct(date) from fits order by date desc").fetchall()
-        for row in rows:
+            # Start with an exact match (case sensitive)
+            cur.execute("select distinct(target) from fits where target = ? order by target", [target])
+            if (cur.rowcount == 0):
+                # If nothing returned, do a fuzzy match (case insenstive)
+                cur.execute("select distinct(target) from fits where target like ? order by target", [ '%'+target+'%' ])
+
+        for row in cur.fetchall():
+            targets.append(row[0])
+        return(targets)
+
+    def fetchDates(self, target=None):
+        '''Return list of distinct dates for this target, handling empty target and fuzzy matches.'''
+        cur = self.db.con.cursor()
+        dates = list()
+
+        if (not target):
+            # All dates
+            cur.execute("select distinct(date) from fits order by date desc")
+        else:
+            # Start with an exact match (case sensitive)
+            cur.execute("select distinct(date) from fits where target = ? order by date desc", [target])
+            if (cur.rowcount == 0):
+                # If nothing returned, do a fuzzy match (case insenstive)
+                cur.execute("select distinct(date) from fits where target like ? order by date desc", [ '%'+target+'%' ])
+
+        for row in cur.fetchall():
             dates.append(row[0])
-        print(">>> dates: {}".format(dates))
-        print(">>> start: {}".format(start))
+        return(dates)
 
-        images = dict()
-        images["title"] = "RFO Image Library: {}".format(target if target else 'All')
-        if (target):
-            images["target"] = target
-        images["allTargets"] = targets
-        images["obsDates"] = dates
-        images["collections"] = list()
-
-        # Figure out where to start if specified
+    def findStartDate(self, dates, start):
+        '''Return index of dates closest to start.'''
         startX = 0
         if (start):
             for date in dates:
@@ -72,23 +71,66 @@ class Markup:
             print(">>> start date {} not found".format(start))
             startX = 0
         print(">>> startX: {}".format(startX))
+        return(startX)
 
-        images["date"] = dates[startX]
+    def fetchDetails(self, cur, target=None, date=None):
+        '''Return list of details (tuple) that match target and date.'''
+        cur = self.db.con.cursor()
+        details = list()
+
+        if (not target):
+            cur.execute("select id, target, thumbnail, preview from fits where date = ? order by id", [ date ])
+        else:
+            cur.execute("select id, target, thumbnail, preview from fits where target = ? and date = ? order by id", [ target, date ])
+            if (cur.rowcount == 0):
+                cur.execute("select id, target, thumbnail, preview from fits where target like ? and date = ? order by id", [ '%'+target+'%', date ])
+
+        for row in cur.fetchall():
+            details.append(row)
+        return(details)
+
+
+    def build_images(self, start=None, target=None, lastTarget=None):
+        '''Build a template (dictionary) of which images to display.'''
+        print(">>> build_images(start={}, target={})".format(start,target))
+
+        images = dict()
+        images['title'] = "RFO Image Library: {}".format(target if target else 'All')
+        images['allTargets'] = self.fetchTargets()
+
+        targets = self.fetchTargets(target)
+        if (len(targets) == 0):
+            # Flash an error and refetch lastTarget
+            flask.flash("Target '{}' not found".format(target))
+            target = lastTarget
+            targets = self.fetchTargets(target)
+        if (target):
+            images['target'] = target
+
+        # Reset date if new target chosen
+        if (lastTarget != target):
+            start = None
+
+        dates = self.fetchDates(target)
+        startX = self.findStartDate(dates, start)
+        if (start):
+            images['date'] = dates[startX]
         if (startX > 0):
-            images["prev"] = dates[startX - 1]
+            images['prev'] = dates[startX - 1]
+        images['obsDates'] = dates
+
+        print(">>> dates: {}".format(dates))
+        print(">>> start: {}".format(start))
 
         thumb_count = 0
+        images["collections"] = list()
         for date in dates[startX:]:
 
             if (thumb_count >= self.thumb_max):
                 images["next"] = date
                 break
 
-            if (target):
-                rows = cur.execute("select id, target, thumbnail, preview from fits where date = '{}' and target = '{}' order by id".format(date,target)).fetchall()
-            else:
-                rows = cur.execute("select id, target, thumbnail, preview from fits where date = '{}' order by id".format(date)).fetchall()
-
+            # Build a collection for each date
             collection = dict()
             prefix = "rfo_{}".format(date)
             collection["id"] = prefix
@@ -99,7 +141,9 @@ class Markup:
                 collection["title"] = date
             collection["pics"] = list()
 
+            # Fetch pic details for this date
             sequence = 0
+            rows = self.fetchDetails(target, date)
             for row in rows:
                 thumb_count += 1
                 sequence += 1
