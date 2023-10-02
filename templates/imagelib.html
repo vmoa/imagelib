@@ -30,6 +30,7 @@
                     <span class="right">
                         <form id="date" method="post" action="/">
                         <input type="hidden" name="target" value="{{ target }}">
+                        <input type="hidden" name="last_target" value="{{ target }}">
                         <span class="right"><input type="image" border="0" src="static/search.png" height="28" alt="[Search]"></span>
                         <span style="float:right; padding-top:4px;">
                         Date:&nbsp;<input class="dropdown" id="awesomeDate" name="start" value="{{ date }}" />&nbsp;
@@ -98,6 +99,7 @@
                     <form id="prev" method="post" action="/">
                     {% if target %}
                     <input type="hidden" name="target" value="{{ target }}">
+                    <input type="hidden" name="last_target" value="{{ target }}">
                     {% endif %}
                     <input type="hidden" name="start" value="{{ prev }}">
                     <span class="left"><input type="image" border="0" src="static/prev.png" height="28" alt="[Prev]"></span>
@@ -107,6 +109,7 @@
                     <form id="next" method="post" action="/">
                     {% if target %}
                     <input type="hidden" name="target" value="{{ target }}">
+                    <input type="hidden" name="last_target" value="{{ target }}">
                     {% endif %}
                     <input type="hidden" name="start" value="{{ next }}">
                     <span class="right"><input type="image" border="0" src="static/next.png" height="28" alt="[Next]"></span>
