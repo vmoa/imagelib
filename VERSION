@@ -1,6 +1,10 @@
-v2.0
+v2.0.1rc0
 
 Version history:
+
+v2.0.1rc0: Fri Oct  6 07:19:26 PDT 2023
+
+    Fix Maxim's munging of ISO timestamps
 
 v2.0: Fri Oct  6 07:15:27 PDT 2023
 
