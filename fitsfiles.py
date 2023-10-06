@@ -60,7 +60,7 @@ class FitsFiles:
 
         # Clean up headers
         headers['OBJECT'] = re.sub(self.whitespace, ' ', headers['OBJECT']).strip()
-        if (broken_iso.search(headers['DATE-OBS'])):
+        if (self.broken_iso.search(headers['DATE-OBS'])):
             headers['DATE-OBS'] += '0'  # Maixm reports hundreths of seconds (.xx); iso requires thousandths (.xxx)
 
         return(headers)
