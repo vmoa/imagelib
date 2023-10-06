@@ -39,6 +39,10 @@ class FitsFiles:
     def __init__(self):
         pass
 
+    # Precompile
+    whitespace = re.compile(r'\s+')
+    broken_iso = re.compile('\.\d\d$')
+
     def parseFitsHeader(self, filename):
         '''Parse the salient bits out of the FITS file header.'''
         with fits.open(filename) as fitsfile:
@@ -54,10 +58,12 @@ class FitsFiles:
                 if hdr in list(hdu.header.keys()):
                     headers[hdr] = hdu.header[hdr]
 
-        return(headers)
+        # Clean up headers
+        headers['OBJECT'] = re.sub(self.whitespace, ' ', headers['OBJECT']).strip()
+        if (broken_iso.search(headers['DATE-OBS'])):
+            headers['DATE-OBS'] += '0'  # Maixm reports hundreths of seconds (.xx); iso requires thousandths (.xxx)
 
-    # Precompile
-    whitespace = re.compile(r'\s+')
+        return(headers)
 
     def buildDatabaseRecord(self, filename, headers):
         '''Translate FITS headers into database record fields.'''
@@ -65,7 +71,7 @@ class FitsFiles:
         record['path'] = filename
 
         if ('OBJECT') in headers:
-            record['object'] = re.sub(self.whitespace, ' ', headers['OBJECT']).strip()
+            record['object'] = headers['OBJECT']
         else:
             record['object'] = 'No Target'
 
