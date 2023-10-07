@@ -25,6 +25,7 @@ dictConfig({
 
 import flask
 app = flask.Flask(__name__)
+app.secret_key = 'allyourbasearebelongtous'
 
 import markup
 markup = markup.Markup()
