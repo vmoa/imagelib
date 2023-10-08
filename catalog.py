@@ -1,11 +1,17 @@
 #
 # catalog.py -- catalog manipulation routines
-#   Saguaro Astronomy Club Database version 8.1
-#   https://www.saguaroastro.org/sac-downloads/
+#
+# Saguaro Astronomy Club Database version 8.1
+# https://www.saguaroastro.org/sac-downloads/
+#
+# IAU Named Stars catalog from https://www.iau.org/public/themes/naming_stars/
+# by way of https://github.com/mirandadam/iau-starnames.git
 #
 
 import argparse
+import csv
 import datetime
+import hashlib
 import os
 import re
 import sqlite3
@@ -28,32 +34,38 @@ class Catalog:
     re_messier = re.compile('^M \d+$')
 
     catalog = {
-        'sag': {
-            'table': 'sag_catalog',
+        'sac': {
+            'table': 'sac_catalog',
             'columns': [ 'object', 'other', 'type', 'con', 'ra', 'dec', 'mag', 'subr', 'u2k', 'ti', 'size_max', 'size_min', 'pa',
                          'class', 'nsts', 'brstr', 'bchm', 'ngc_descr', 'notes'],
+            'indices': [ 'UNIQUE:object', ':type' ],
             'qmarks': [],
+            'md5': 'ba5a59bfcf97d6aa588404ad4b479694',
             'defname': 0,
             'othernames': [ 1 ]
         },
-        'iau': {
+        'iau': {    # ,IAU Name ,Designation,HIP,Bayer Name,#,WDS_J,Vmag,RA(J2000),Dec(J2000),Origin,Etymology Note,Source,,ID,Const.
             'table': 'iau_catalog',
-            'columns': [ 'name', 'disignation', 'bayer', 'con', 'wds_j', 'mag', 'bnd', 'hip', 'hd', 'ra', 'dec', 'date', 'notes' ],
+            'columns': [ 'name', 'disignation', 'hip', 'bayer', 'num', 'wds_j', 'mag', 'ra', 'dec', 'origin', 'note', 'source', 'unused', 'cid', 'con' ],
+            'indices': [ 'UNIQUE:name', ':hip', ':bayer' ],
             'qmarks': [],
+            'md5': '18836c4bd7c694568f0d830f5e38e409',
             'defname': 0,
             'othernames': [ 1 ]
         },
         'cat': {
             'table': 'catalog',
-            'columns' = [ 'taget TEXT', 'cname TEXT', 'table TEXT', 'id INTEGER' ],
+            'columns': [ 'target', 'cname', 'table_name', 'table_id' ],
+            'indices': [ ':cname', 'UNIQUE:target', ':table_name,table_id' ],
             'qmarks': [],
+            'md5': 0,
             'defname': None,
             'othernames': [ None ]
         }
-    } &&&&&
-    sag_qmarks  = [ '?' ] * length(sag_columns)
-    iau_qmarks  = [ '?' ] * length(iau_columns)
-    cat_qmarks  = [ '?' ] * length(cat_columns)
+    } 
+    catalog['sac']['qmarks']  = [ '?' ] * len(catalog['sac']['columns'])
+    catalog['iau']['qmarks']  = [ '?' ] * len(catalog['iau']['columns'])
+    catalog['cat']['qmarks']  = [ '?' ] * len(catalog['cat']['columns'])
 
     db = fitsdb.Fitsdb()
 
@@ -63,6 +75,7 @@ class Catalog:
 
     @classmethod
     def prettyspace(cls, string):
+        string = string.replace('"', '')
         string = re.sub(cls.re_left, '', string)
         string = re.sub(cls.re_right, '', string)
         string = re.sub(cls.re_center, ' ', string)
@@ -84,20 +97,15 @@ class Catalog:
             return(object)
 
     @classmethod
-    def divine(cls, fn):
-        '''Divine catalog type of `fn`.'''
-        if (sys.file.exists(fn)):
-            if (regex.match('DeepSky', fn)):
-                return('deepsky')
-            elsif (regext.match('star', fn)):
-                return('star')
-            else:
-                print("Cannot divine file type for {}".format(fn))
-                sys.exit(1)
-        else:
-            print("File not found: {}".format(fn))
-            sys.exit(1)
-
+    def divine(cls, file, fn):
+        '''Read header from file and return catalog type.'''
+        headerline = file.readline()
+        header_md5 = hashlib.md5(headerline.encode('utf-8')).hexdigest()
+        for type in Catalog.catalog.keys():
+            if (header_md5 == Catalog.catalog[type]['md5']):
+                return(type)
+        print("Cannot divine catalog type for {}. (md5:{})".format(fn, header_md5))
+        return(None)
 
 
 #
@@ -120,7 +128,8 @@ def check_catalog_files(args):
 def drop_tables(cur):
     '''Drop catalog tables.'''
     missing_table = 0
-    for table in [ sag_catalog, iau_catalog, catalog_by_target ]:
+    for cattype in Catalog.catalog.keys():
+        table = Catalog.catalog[cattype]['table']
         sql = "DROP TABLE {}".format(table)
         ### print(">>> {}".format(sql))
         try:
@@ -133,126 +142,123 @@ def drop_tables(cur):
                 missing_table = 1
     if (missing_table):
         print('You meant maybe `create` instead?')
-        sys.exit(1)
+        #sys.exit(1)
 
 
 def create_tables(cur):
     '''Create catalog tables and indexes.'''
-    # Create SAG catalog from (LINK)
-    sql = "CREATE TABLE sag_catalog (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  {} TEXT\n)".format(' TEXT,\n  '.join(Catalog.sag_columns))
-    print(">>> {}".format(sql))
-    try:
-        cur.execute(sql)
-        cur.execute("CREATE UNIQUE INDEX sqg_catalog_object_index ON catalog (object)")
-        cur.execute("CREATE INDEX sqg_catalog_type_index ON catalog (type)")
+    for cattype in Catalog.catalog.keys():
+        cat = Catalog.catalog[cattype]
+        table = Catalog.catalog[cattype]['table']
+        columns = Catalog.catalog[cattype]['columns']
+        
+        sql = "CREATE TABLE {} (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  {} TEXT\n)".format(table, ' TEXT,\n  '.join(columns))
+        try:
+            print(">>> " + sql)
+            cur.execute(sql)
+        except sqlite3.Error as er:
+            print('ERROR: ' + ' '.join(er.args))
+            if (er.args[0].find('already exists') >= 0):
+                print("HINT: If you really want to recreate it, rerun using `recreate`")
+            #sys.exit(1)
+
+        count = 0
+        for index in Catalog.catalog[cattype]['indices']:
+            (unique, col) = index.split(':')
+            sql = "CREATE {} INDEX {}_index{} on {} ({})".format(unique, table, count, table, col)
+            print(">>> " + sql)
+            cur.execute(sql) 
+            count += 1
+
         db.con.commit()
-    except sqlite3.Error as er:
-        print('ERROR: ' + ' '.join(er.args))
-        if (er.args[0] == 'table sag_catalog already exists'):
-            print("HINT: If you really want to recreate it, rerun using `recreate`")
-        sys.exit(1)
-    print("Table sag_catalog created")
-
-    # Create IAU Named Stars catalog from https://www.iau.org/public/themes/naming_stars/
-    # by way of https://github.com/mirandadam/iau-starnames.git
-    sql = "CREATE TABLE iau_catalog (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  {} TEXT\n)".format(' TEXT,\n  '.join(Catalog.iau_columns))
-    print(">>> {}".format(sql))
-    try:
-        cur.execute(sql)
-        cur.execute("CREATE UNIQUE INDEX iau_catalog_bayer_index ON iau_catalog (bayer)")
-        cur.execute("CREATE UNIQUE INDEX iau_catalog_hip_index ON iau_catalog (hip)")
-        db.con.commit()
-    except sqlite3.Error as er:
-        print('ERROR: ' + ' '.join(er.args))
-        if (er.args[0] == 'table iau_catalog already exists'):
-            print("HINT: If you really want to recreate it, rerun using `recreate`")
-        sys.exit(1)
-    print("Table iau_catalog created")
-
-    # Create master catalog with several entries referencing specific catalogs
-    sql = "CREATE TABLE catalog (\n  {}\n)".format(',\n  '.join(Catalog.cat_columns))
-    print(">>> {}".format(sql))
-    try:
-        cur.execute(sql)
-        cur.execute("CREATE INDEX catalog_by_target_target_index ON catalog_by_target (target)")
-        cur.execute("CREATE INDEX catalog_by_target_table_id_index ON catalog_by_target (table, id)")
-        db.con.commit()
-    except sqlite3.Error as er:
-        print('ERROR: ' + ' '.join(er.args))
-        if (er.args[0] == 'table catalog already exists'):
-            print("HINT: If you really want to recreate it, rerun using `recreate`")
-        sys.exit(1)
-    print("Table catalog_by_target created")
+        print("Table {} created".format(table))
 
 
-def populate_table(cur, table, sac_catalog):
-    '''Read SAC data file and insert into table.'''
-    print("Populating SAG catalog from {}".format(sag_catalog))
-    file = open(sag_catalog)
+def populate_table(cur, fn):
+    '''Read `fn`, divine type, and insert into appropriate table.'''
+    print("Divining catalog type of {}".format(fn))
+    file = open(fn)
+    cattype = Catalog.divine(file, fn)
+    if (cattype):
+        cat = Catalog.catalog[cattype]
+    else:
+        return
 
-    # Read and validate headerline
-    headerline = file.readline()
-    if (md5(headerline) != Catalog.sac_md5):
-        print("Uh oh, {} has changed! (found {} expected {})".format(sag_catalog, md5(headerline), Catalog.sac_md5))
-        sys.exit(1)
+    print("Populating {} catalog from {}".format(cattype, fn))
+    sql1 = 'INSERT INTO {} ({}) VALUES ({})'.format(cat['table'], ','.join(cat['columns']), ','.join(cat['qmarks']))
+    colcount = len(cat['columns'])
 
-    linenum = 1  # We already processed header
+    linenum = 1  # We already processed header in `divine()`
     insertCount = 0
     aliasCount = 0
-    datalines = file.readlines()
-    for dataline in datalines:
+    #for dataline in file:
+    for data in csv.reader(file):
         linenum += 1
+                        aliasCount -= 1
+                        aliasCount -= 1
+                        aliasCount -= 1
+                        aliasCount -= 1
+                        aliasCount -= 1
+                        aliasCount -= 1
+                        aliasCount -= 1
 
         # Twiddle the data
-        ### print(">>> dataline: {}".format(dataline))
-        data = list()
-        for d in dataline.rstrip().split('","'):
-            data.append(cat.prettyspace(d))
-        ### print(">>> data: {}".format(data))
-        if (len(data) != len(Catalog.sag_header)):
-            print("Not enough fields at line {}; skipping (found {} expected {})".format(linenum, len(data), len(header)))
+        data = [ Catalog.prettyspace(d) for d in data ]
+        if (cattype == 'iau'):
+            data = data[1:]   # First column is null
+        #print(">>> data: {}".format(data))
+        if (len(data) != colcount):
+            print("Wrong number of fields at line {}; skipping (found {} expected {})".format(linenum, len(data), colcount))
             next
 
-        # Insert into SAG catalog
-        sql = 'INSERT INTO sag_catalog ({}) VALUES ({})'.format(','.join(Catalog.sag_header), ','.join(Catalog.sag_qmarks))
-        ### print(">>> {}".format(sql))
+        # Insert into catalog
         try:
-            cur.execute(sql, data)
-            # db.con.commit()
+            #print(">>> {} {}".format(sql1, data))
+            cur.execute(sql1, data)
             id = cur.lastrowid
             insertCount += 1
         except sqlite3.Error as er:
-            if (er.args[0] == 'UNIQUE constraint failed: catalog.object'):
+            if (er.args[0].find('UNIQUE constraint failed') >= 0):
                 print("Duplicate {} entry found at line {}; skipping".format(data[0], linenum))
-                insertCount -= 1
             else:
                 print('ERROR: ' + ' '.join(er.args))
                 sys.exit(1)
 
         # Get all our possible names
-        targets = [ data[0] ]           # [0] is object
-        for alt in data[1].split(';'):  # [1] is `other` name(s) for object
+        targets = [ data[0] ]           # [0] is sac:object iau:iau_name
+        for alt in data[1].split(';'):  # [1] is sac:other iau:designation
             targets.append(alt)
+        if (cattype == 'iau'):
+            if (data[2] and data[1].find('HIP') < 0):  # Some entries use HIP as designation
+                targets.append('HIP ' + data[2])
+            if (data[3].find('_') < 0):    # Underscore is probably an ascii mapping challenge
+                targets.append('Bayer ' + data[3])
 
         # Figure out canonical name
         cname = data[0]                 # default to `object`
         for target in targets:
-            if (cat.re_messier.match(target)):
+            if (Catalog.re_messier.match(target)):
                 cname = target          # override with Messier
                 break
 
         # Add all our names to lookup table
+        sql2 = "insert into catalog (target, cname, table_name, table_id) values (?,?,?,?)"
         for target in targets:
             if (target):
-                sql = "insert into catalog (target, cname, table, id) values (?,?,?,?)"
-                ### print(">>> {} {}".format(sql, [ target, cname, 'sag_catalog', id ]))
-                cur.execute(sql, [ target, cname, 'sag_catalog', id ])
-                aliasCount += 1
+                try:
+                    #print(">>> {} {}".format(sql2, [ target, cname, cat['table'], id ]))
+                    cur.execute(sql2, [ target, cname, cat['table'], id ])
+                    aliasCount += 1
+                except sqlite3.Error as er:
+                    if (er.args[0].find('UNIQUE constraint failed') >= 0):
+                        print("Duplicate entry for {} found {}; skipping".format(data[1], data))
+                    else:
+                        print('ERROR: ' + ' '.join(er.args))
+                        sys.exit(1)
 
-        db.con.commit()
-        print("{} catalog entries added".format(insertCount))
-        print("{} target aliases added".format(aliasCount))
-        db.con.close()
+    db.con.commit()
+    print("{} catalog entries added".format(insertCount))
+    print("{} target aliases added".format(aliasCount))
 
 
 #
@@ -260,8 +266,6 @@ def populate_table(cur, table, sac_catalog):
 #
 
 if (__name__ == "__main__"):
-
-    catalogs = [ 'deepsky', 'star' ]
 
     # Rolling my own; argparse() just wasn't doing it...
     prog = os.path.basename(__file__)
@@ -289,7 +293,7 @@ if (__name__ == "__main__"):
 
         if (len(args) != 2):
             print("Need to specify both SAC and IAU catalogs (probably SAC_DeepSky_VerXX_QCQ.TXT and IAU-CSN.json)")
-            print($usage)
+            print(usage)
             exit(1)
 
         cur = db.con.cursor()
@@ -298,8 +302,9 @@ if (__name__ == "__main__"):
             drop_tables(cur)
 
         create_tables(cur)
-        populate_sac_table(cur, args[0])
-        populate_iau_table(cur, args[1])
+        populate_table(cur, args[0])
+        populate_table(cur, args[1])
+        db.con.close()
         sys.exit()
 
     elif (cmd == 'stats'):
