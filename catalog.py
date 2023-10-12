@@ -35,32 +35,29 @@ class Catalog:
 
     catalog = {
         'sac': {
-            'table': 'sac_catalog',
+            'table':   'sac_catalog',
             'columns': [ 'object', 'other', 'type', 'con', 'ra', 'dec', 'mag', 'subr', 'u2k', 'ti', 'size_max', 'size_min', 'pa',
                          'class', 'nsts', 'brstr', 'bchm', 'ngc_descr', 'notes'],
             'indices': [ 'UNIQUE:object', ':type' ],
-            'qmarks': [],
-            'md5': 'ba5a59bfcf97d6aa588404ad4b479694',
-            'defname': 0,
-            'othernames': [ 1 ]
+            'names':   [ 'object', 'other' ],
+            'qmarks':  [],
+            'md5':     'ba5a59bfcf97d6aa588404ad4b479694',
         },
         'iau': {    # ,IAU Name ,Designation,HIP,Bayer Name,#,WDS_J,Vmag,RA(J2000),Dec(J2000),Origin,Etymology Note,Source,,ID,Const.
-            'table': 'iau_catalog',
-            'columns': [ 'name', 'disignation', 'hip', 'bayer', 'num', 'wds_j', 'mag', 'ra', 'dec', 'origin', 'note', 'source', 'unused', 'cid', 'con' ],
+            'table':   'iau_catalog',
+            'columns': [ 'name', 'designation', 'hip', 'bayer', 'num', 'wds_j', 'mag', 'ra', 'dec', 'origin', 'note', 'source', 'unused', 'cid', 'con' ],
             'indices': [ 'UNIQUE:name', ':hip', ':bayer' ],
-            'qmarks': [],
-            'md5': '18836c4bd7c694568f0d830f5e38e409',
-            'defname': 0,
-            'othernames': [ 1 ]
+            'names':   [ 'name', 'designation', 'hip', 'bayer' ],
+            'qmarks':  [],
+            'md5':     '18836c4bd7c694568f0d830f5e38e409',
         },
         'cat': {
-            'table': 'catalog',
+            'table':   'catalog',
             'columns': [ 'target', 'cname', 'table_name', 'table_id' ],
             'indices': [ ':cname', 'UNIQUE:target', ':table_name,table_id' ],
-            'qmarks': [],
-            'md5': 0,
-            'defname': None,
-            'othernames': [ None ]
+            'names':   [],
+            'qmarks':  [],
+            'md5':     0,
         }
     } 
     catalog['sac']['qmarks']  = [ '?' ] * len(catalog['sac']['columns'])
@@ -190,26 +187,21 @@ def populate_table(cur, fn):
 
     linenum = 1  # We already processed header in `divine()`
     insertCount = 0
-    aliasCount = 0
-    #for dataline in file:
     for data in csv.reader(file):
         linenum += 1
-                        aliasCount -= 1
-                        aliasCount -= 1
-                        aliasCount -= 1
-                        aliasCount -= 1
-                        aliasCount -= 1
-                        aliasCount -= 1
-                        aliasCount -= 1
 
         # Twiddle the data
         data = [ Catalog.prettyspace(d) for d in data ]
         if (cattype == 'iau'):
-            data = data[1:]   # First column is null
+            data = data[1:]     # First column is null
+            if (data[2]):       # Prefix HIP for easy searching
+                data[2] = 'HIP ' + data[2]
+            if (data[4] and data[4] != '-' and data[4] != '_'):  # Full Bayer designation, eg α Cen B
+                data[3] = data[3] +' '+ data[4]
         #print(">>> data: {}".format(data))
         if (len(data) != colcount):
             print("Wrong number of fields at line {}; skipping (found {} expected {})".format(linenum, len(data), colcount))
-            next
+            continue
 
         # Insert into catalog
         try:
@@ -224,40 +216,56 @@ def populate_table(cur, fn):
                 print('ERROR: ' + ' '.join(er.args))
                 sys.exit(1)
 
-        # Get all our possible names
-        targets = [ data[0] ]           # [0] is sac:object iau:iau_name
-        for alt in data[1].split(';'):  # [1] is sac:other iau:designation
-            targets.append(alt)
-        if (cattype == 'iau'):
-            if (data[2] and data[1].find('HIP') < 0):  # Some entries use HIP as designation
-                targets.append('HIP ' + data[2])
-            if (data[3].find('_') < 0):    # Underscore is probably an ascii mapping challenge
-                targets.append('Bayer ' + data[3])
+    db.con.commit()
+    print("{} {} catalog entries added".format(insertCount, cattype))
 
-        # Figure out canonical name
-        cname = data[0]                 # default to `object`
-        for target in targets:
-            if (Catalog.re_messier.match(target)):
-                cname = target          # override with Messier
-                break
 
-        # Add all our names to lookup table
-        sql2 = "insert into catalog (target, cname, table_name, table_id) values (?,?,?,?)"
-        for target in targets:
-            if (target):
-                try:
-                    #print(">>> {} {}".format(sql2, [ target, cname, cat['table'], id ]))
-                    cur.execute(sql2, [ target, cname, cat['table'], id ])
-                    aliasCount += 1
-                except sqlite3.Error as er:
-                    if (er.args[0].find('UNIQUE constraint failed') >= 0):
-                        print("Duplicate entry for {} found {}; skipping".format(data[1], data))
-                    else:
-                        print('ERROR: ' + ' '.join(er.args))
-                        sys.exit(1)
+
+def build_master_catalog(cur):
+    '''Pull the records from all xxx_catalogs and build the master catalog.'''
+    print('Building master catalog')
+    aliasCount = 0
+    for cattype in Catalog.catalog.keys():
+        if (cattype == 'cat'):  # This is the one we're building!
+            continue
+
+        print(">>> Processing {} --> catalog".format(cattype))
+        table = Catalog.catalog[cattype]['table']
+        columns = Catalog.catalog[cattype]['names']
+
+        # Fetch all our name fields from each catalog
+        select = "select id, {} from {} order by id".format(', '.join(columns), table)
+        print(">>> " + select)
+        for row in cur.execute(select).fetchall():
+            id = row[0]
+            cname = row[1]
+
+            # Get all our possible names
+            targets = list()
+            for cell in row[1:]:
+                for target in cell.split(';'):
+                    if (target.find('_') == 0 or target.find('-') == 0):  # Bayer desingation with ascii mapping challenge
+                        continue
+                    targets.append(target)
+                    if (Catalog.re_messier.match(target)):
+                        cname = target          # override with Messier, and pray there's only one
+
+            # And add them all to the master catalog
+            sql2 = "insert into catalog (target, cname, table_name, table_id) values (?,?,?,?)"
+            for target in targets:
+                if (target):
+                    try:
+                        print(">>> {} {}".format(sql2, [ target, cname, table, id ]))
+                        cur.execute(sql2, [ target, cname, table, id ])
+                        aliasCount += 1
+                    except sqlite3.Error as er:
+                        if (er.args[0].find('UNIQUE constraint failed') >= 0):
+                            print("Duplicate canonical name for {} found {}; skipping".format(cname, [ target, cname, table, id ]))
+                        else:
+                            print('ERROR: ' + ' '.join(er.args))
+                            sys.exit(1)
 
     db.con.commit()
-    print("{} catalog entries added".format(insertCount))
     print("{} target aliases added".format(aliasCount))
 
 
@@ -304,6 +312,7 @@ if (__name__ == "__main__"):
         create_tables(cur)
         populate_table(cur, args[0])
         populate_table(cur, args[1])
+        build_master_catalog(cur)
         db.con.close()
         sys.exit()
 
