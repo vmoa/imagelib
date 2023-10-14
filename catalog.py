@@ -67,8 +67,7 @@ class Catalog:
     db = fitsdb.Fitsdb()
 
     def init(self):
-        ### print(">>> Connecting to database")
-        self.db = fitsdb.Fitsdb()
+        pass
 
     @classmethod
     def prettyspace(cls, string):
@@ -85,7 +84,7 @@ class Catalog:
         if (not cls.db):
             cls.__init__()
         cur = cls.db.con.cursor()
-        sql = "select cname from catalog_by_target where target = ?"
+        sql = "select cname from catalog where target = ?"
         ### print(">>> {} WITH {}".format(sql, object)) ###DEBUG
         row = cur.execute(sql, [ object ]).fetchone()
         if (row):
