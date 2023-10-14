@@ -15,10 +15,15 @@ class Fitsdb:
         dbfile = 'fits.db'
         tsfile = 'fits.last_run'
 
+    con = None
 
     def __init__(self):
         # All threads use a single connection, so care must be taken when writing!
-        self.con = sqlite3.connect(self.dbfile, check_same_thread=False)
+        if (not Fitsdb.con):
+            print(">>> Connecting to database")
+            Fitsdb.con = sqlite3.connect(self.dbfile, check_same_thread=False)
+        else:
+            print(">>> Reusing database connection")
 
     def __del__(self):
         self.con.close()
@@ -50,7 +55,7 @@ class Fitsdb:
             print('WARNING: ' + ' '.join(er.args))
             return(0)
 
-        return(1)
+        return(cur.lastrowid)
 
 
 
