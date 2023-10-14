@@ -36,6 +36,8 @@ class FitsFiles:
         'flat':         'Flat Frame',
     }
 
+    db = fitsdb.Fitsdb()
+
     def __init__(self):
         pass
 
@@ -59,7 +61,8 @@ class FitsFiles:
                     headers[hdr] = hdu.header[hdr]
 
         # Clean up headers
-        headers['OBJECT'] = re.sub(self.whitespace, ' ', headers['OBJECT']).strip()
+        if ('OBJECT' in headers):
+            headers['OBJECT'] = re.sub(self.whitespace, ' ', headers['OBJECT']).strip()
         if (self.broken_iso.search(headers['DATE-OBS'])):
             headers['DATE-OBS'] += '0'  # Maixm reports hundreths of seconds (.xx); iso requires thousandths (.xxx)
 
@@ -70,7 +73,7 @@ class FitsFiles:
         record = dict()
         record['path'] = filename
 
-        if ('OBJECT') in headers:
+        if ('OBJECT' in headers):
             record['object'] = headers['OBJECT']
         else:
             record['object'] = 'No Target'
@@ -95,6 +98,25 @@ class FitsFiles:
             record['y'] = headers['NAXIS2']
         return(record)
 
+    def addAliases(self, record, rowid):
+        '''Add all aliases for target to the fits_by_target table.'''
+        if (not rowid):
+            print(">>> Cowardly refusing to add aliases without a fits_id")
+            return;  # Nothing to do if we don't have a row ID
+        thisTarget = record['target']
+        cur = self.db.con.cursor()
+        cur2 = self.db.con.cursor()
+
+        # The union covers the case where there's no catalog entry for target
+        sql = 'select target from catalog where cname in (select cname from catalog where target = ?)  union select ? as target'
+        print(">>> {} {}".format(sql, [thisTarget, thisTarget]))
+        rows = cur.execute(sql, [thisTarget, thisTarget]).fetchall()
+        for row in rows:
+            alias = row[0]
+            sql2 = 'insert into fits_by_target (target, date, fits_id) values (?,?,?)'
+            print(">>> {} {}".format(sql2, [ alias, record['date'], rowid ]))
+            cur2.execute(sql2, [ alias, record['date'], rowid ])
+
     def fits2png(self, record):
         '''Generate and png preview and thumbnail images; return updated database record.'''
         preview = record['path'][:-5] + '.png'
@@ -115,10 +137,34 @@ class FitsFiles:
 
         return(record)
 
-    def findNewFits(self, path, fitsdb):
-        '''Find new FITS files since last time we were run.  Runs the `find` system command on `path` to locate *.fits newer than `ts_file`.'''
-        start_time = datetime.datetime.now()  # On the off chance new files come in during find
+    def addFitsFile(self, filename):
+        filename = filename.rstrip()
+        if (not os.path.exists(filename)):
+            print("Skipping {}: File not found!".format(filename))
+            return(0)
 
+        print("Importing {}".format(filename))   ###DEBUG
+        headers = self.parseFitsHeader(filename)
+        record = self.buildDatabaseRecord(filename, headers)
+        record = self.fits2png(record)
+        rowid = fitsdb.insert(record)
+        self.addAliases(record, rowid)
+        if (rowid):
+            return(1)
+        else:
+            return(0)
+
+    def findNewFits(self, path, fitsdb, files):
+        '''Find new FITS files since last time we were run.  Runs the `find` system command on `path` to locate *.fits newer than `ts_file`.'''
+
+        if (files):
+            # Skip all the find logic and just add files
+            count = 0
+            for filename in files:
+                count += self.addFitsFile(filename)
+            return(count)
+
+        start_time = datetime.datetime.now()  # On the off chance new files come in during find
         newer_arg = '';
         if (os.path.exists(fitsdb.tsfile)):
             newer_arg = '-newer ' + fitsdb.tsfile
@@ -128,12 +174,7 @@ class FitsFiles:
         count = 0
         with os.popen(find_cmd) as find_out:
             for filename in find_out:
-                filename = filename.rstrip()
-                print("Importing {}".format(filename))   ###DEBUG
-                headers = self.parseFitsHeader(filename)
-                record = self.buildDatabaseRecord(filename, headers)
-                record = self.fits2png(record)
-                count += fitsdb.insert(record)
+                count += self.addFitsFile(filename)
 
         # Update the timestamp with our start time, but only if successful
         if (count > 0):
@@ -149,6 +190,7 @@ if (__name__ == "__main__"):
     parser = argparse.ArgumentParser(description='FITS file utilities.')
     parser.add_argument('--fitspath', '-f', dest='fitspath', action='store', help='path to fits files')
     parser.add_argument('--forcepng', '-p', dest='forcepng', action='store_true', help='force regeneration of PNG files even if they exist')
+    parser.add_argument('file', nargs='*', help='full path to file to add (may be repeated)')
     args = parser.parse_args()
 
     fitsdb = fitsdb.Fitsdb()
@@ -158,7 +200,7 @@ if (__name__ == "__main__"):
         fitsfiles.fitspath = args.fitspath
     if (args.forcepng):
         fitsfiles.forcepng = args.forcepng
-    count = fitsfiles.findNewFits(fitsfiles.fitspath, fitsdb)
+    count = fitsfiles.findNewFits(fitsfiles.fitspath, fitsdb, files=args.file)
 
     print("Successfully added {} images".format(count))
 
