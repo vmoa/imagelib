@@ -235,43 +235,61 @@ def build_master_catalog(cur):
         table = Catalog.catalog[cattype]['table']
         columns = Catalog.catalog[cattype]['names']
 
-        # Fetch all our name fields from each catalog
+        # Build a dict of alternate names from catalog keyed by cname
+        targets = dict()
+        id = dict()
         select = "select id, {} from {} order by id".format(', '.join(columns), table)
         ### print(">>> " + select)
         for row in cur.execute(select).fetchall():
-            id = row[0]
-            cname = row[1]
+            theseTargets = cleanupTargets(row[1:])
+            cname = theseTargets[0]
+            targets[cname] = theseTargets[1:]
+            id[cname] = row[0]
 
-            # Get all our possible names
-            targets = list()
-            for cell in row[1:]:
-                for target in cell.split(';'):
-                    if (target.find('_') == 0 or target.find('-') == 0):  # Bayer desingation with ascii mapping challenge
-                        continue
-                    if (target.find('MCG') == 0):   # SAC catalog MCG names are afu -- see https://heasarc.gsfc.nasa.gov/W3Browse/galaxy-catalog/mcg.html
-                        target = re.sub(Catalog.re_whitespace, '', target)          # Strip all whitespace
-                        target = re.sub(Catalog.re_mcg_match, r'MGC-\1', target)    # And fix intermittently missing hyphen
-                    targets.append(target)
-                    if (Catalog.re_messier.match(target)):
-                        cname = target          # override with Messier, and pray there's only one
+        # First iterate over targets and record cnames so they win the UNIQUE constraint
+        for cname in targets.keys():
+            aliasCount += insertMasterRow(cname, cname, table, id[cname])
 
-            # And add them all to the master catalog
-            sql2 = "insert into catalog (target, cname, table_name, table_id) values (?,?,?,?)"
-            for target in targets:
-                if (target):
-                    try:
-                        ### print(">>> {} {}".format(sql2, [ target, cname, table, id ]))
-                        cur.execute(sql2, [ target, cname, table, id ])
-                        aliasCount += 1
-                    except sqlite3.Error as er:
-                        if (er.args[0].find('UNIQUE constraint failed') >= 0):
-                            print("Duplicate canonical name for {} found {}; skipping".format(cname, [ target, cname, table, id ]))
-                        else:
-                            print('ERROR: ' + ' '.join(er.args))
-                            sys.exit(1)
+        # Then re-iterate over targets and record alternate names
+        for cname in targets.keys():
+            for target in targets[cname]:
+                aliasCount += insertMasterRow(target, cname, table, id[cname])
 
     db.con.commit()
     print("{} target aliases added".format(aliasCount))
+
+def cleanupTargets(row):
+    '''Split out and clean up target names. First target is cname.'''
+    targets = list()
+    for cell in row:
+        for target in cell.split(';'):
+            if (target.find('_') == 0 or target.find('-') == 0):  # Skip Bayer desingation with ascii mapping challenge
+                continue
+            if (target.find('MCG') == 0):   # SAC catalog MCG names are afu -- see https://heasarc.gsfc.nasa.gov/W3Browse/galaxy-catalog/mcg.html
+                target = re.sub(Catalog.re_whitespace, '', target)          # Strip all whitespace
+                target = re.sub(Catalog.re_mcg_match, r'MGC-\1', target)    # And fix intermittently missing hyphen
+            targets.append(target)
+            if (Catalog.re_messier.match(target)):      # If Messier, swap with targets[0] so it's the cname
+                targets[len(targets)-1] = targets[0]
+                targets[0] = target
+    return(targets)
+
+def insertMasterRow(target, cname, table, id):
+    '''Insert row into master catalog.'''
+    if (not target):
+        return(0)
+    sql2 = "insert into catalog (target, cname, table_name, table_id) values (?,?,?,?)"
+    try:
+        ### print(">>> {} {}".format(sql2, [ target, cname, table, id ]))
+        cur.execute(sql2, [ target, cname, table, id ])
+        return(1)
+    except sqlite3.Error as er:
+        if (er.args[0].find('UNIQUE constraint failed') >= 0):
+            print("Duplicate canonical name for {} found {}; skipping".format(cname, [ target, cname, table, id ]))
+            return(0)
+        else:
+            print('ERROR: ' + ' '.join(er.args))
+            sys.exit(1)
 
 
 #
