@@ -32,6 +32,9 @@ class Catalog:
     re_center = re.compile(' +')       # Multispace sequences
 
     re_messier = re.compile('^M \d+$')
+    re_whitespace = re.compile(r'\s+')
+    re_mcg_match = re.compile(r'^MCG(\d)')
+
 
     catalog = {
         'sac': {
@@ -150,7 +153,7 @@ def create_tables(cur):
         
         sql = "CREATE TABLE {} (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  {} TEXT\n)".format(table, ' TEXT,\n  '.join(columns))
         try:
-            print(">>> " + sql)
+            ### print(">>> " + sql)
             cur.execute(sql)
         except sqlite3.Error as er:
             print('ERROR: ' + ' '.join(er.args))
@@ -162,7 +165,7 @@ def create_tables(cur):
         for index in Catalog.catalog[cattype]['indices']:
             (unique, col) = index.split(':')
             sql = "CREATE {} INDEX {}_index{} on {} ({})".format(unique, table, count, table, col)
-            print(">>> " + sql)
+            ### print(">>> " + sql)
             cur.execute(sql) 
             count += 1
 
@@ -234,7 +237,7 @@ def build_master_catalog(cur):
 
         # Fetch all our name fields from each catalog
         select = "select id, {} from {} order by id".format(', '.join(columns), table)
-        print(">>> " + select)
+        ### print(">>> " + select)
         for row in cur.execute(select).fetchall():
             id = row[0]
             cname = row[1]
@@ -245,6 +248,9 @@ def build_master_catalog(cur):
                 for target in cell.split(';'):
                     if (target.find('_') == 0 or target.find('-') == 0):  # Bayer desingation with ascii mapping challenge
                         continue
+                    if (target.find('MCG') == 0):   # SAC catalog MCG names are afu -- see https://heasarc.gsfc.nasa.gov/W3Browse/galaxy-catalog/mcg.html
+                        target = re.sub(Catalog.re_whitespace, '', target)          # Strip all whitespace
+                        target = re.sub(Catalog.re_mcg_match, r'MGC-\1', target)    # And fix intermittently missing hyphen
                     targets.append(target)
                     if (Catalog.re_messier.match(target)):
                         cname = target          # override with Messier, and pray there's only one
@@ -254,7 +260,7 @@ def build_master_catalog(cur):
             for target in targets:
                 if (target):
                     try:
-                        print(">>> {} {}".format(sql2, [ target, cname, table, id ]))
+                        ### print(">>> {} {}".format(sql2, [ target, cname, table, id ]))
                         cur.execute(sql2, [ target, cname, table, id ])
                         aliasCount += 1
                     except sqlite3.Error as er:
