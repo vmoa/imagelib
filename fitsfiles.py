@@ -61,8 +61,12 @@ class FitsFiles:
         # Clean up headers
         if ('OBJECT' in headers):
             headers['OBJECT'] = re.sub(self.whitespace, ' ', headers['OBJECT']).strip()
-        if (self.broken_iso.search(headers['DATE-OBS'])):
-            headers['DATE-OBS'] += '0'  # Maixm reports hundreths of seconds (.xx); iso requires thousandths (.xxx)
+        if ('DATE-OBS' in headers):
+            if (self.broken_iso.search(headers['DATE-OBS'])):
+                headers['DATE-OBS'] += '0'  # Maixm reports hundreths of seconds (.xx); iso requires thousandths (.xxx)
+        else:
+            print("No DATE-OBS header in {}; skipping".format(filename))
+            return(None)
 
         return(headers)
 
@@ -124,6 +128,8 @@ class FitsFiles:
 
         print("Importing {}".format(filename))   ###DEBUG
         headers = self.parseFitsHeader(filename)
+        if (not headers):
+            return(0)
         record = self.buildDatabaseRecord(filename, headers)
         record = self.fits2png(record)
         rowid = fitsdb.insert(record)
