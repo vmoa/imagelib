@@ -16,8 +16,8 @@ import fitsdb
 
 class FitsFiles:
 
-    if (os.path.exists('/home/nas/Eagle/SkyX/Images')):
-        fitspath = '/home/nas/Eagle/SkyX/Images'
+    if (os.path.exists('/home/nas/Eagle')):
+        fitspath = '/home/nas/Eagle'
     else:
         fitspath = 'Eagle'
 
