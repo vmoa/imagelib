@@ -1,6 +1,10 @@
-v2.0.1rc1
+v2.0.1rc2
 
 Version history:
+
+v2.0.1rc2: Sat Jan 27 08:23:10 PST 2024
+
+    change fitspath to include both Maxim and SkyX
 
 v2.0.1rc1: Fri Oct  6 07:26:33 PDT 2023
 
