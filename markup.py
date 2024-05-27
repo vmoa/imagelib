@@ -107,12 +107,18 @@ class Markup:
             return(var)
 
 
-    def build_images(self, start=None, target=None, lastTarget=None):
+    # Main UI entrypoint
+    def build_images(self, start=None, target=None, imgfilter=[''], lastTarget=None):
         '''Build a template (dictionary) of which images to display.'''
-        print(">>> build_images(start={}, target={}, lastTarget={})".format(start,target,lastTarget))
+        print(">>> build_images(start={}, target={}, imgfilter={}, lastTarget={})".format(start,target,imgfilter,lastTarget))
 
         images = dict()
         images['allTargets'] = self.fetchTargets(search_type = 'all')
+
+        images['imgfilter'] = ','.join(imgfilter)
+        images['imgfilter_checked'] = dict()
+        for filter in [ 'calibration', 'target' ]:
+            images['imgfilter_check'][filter] = 'checked' if filter in imgfilter else ''
 
         search_type = self.searchType(target)
         targets = self.fetchTargets(target, search_type)

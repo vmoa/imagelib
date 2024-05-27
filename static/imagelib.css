@@ -51,6 +51,16 @@ div.page_title_bar, div.page_footer_bar {
 
 .filters {
     float: right;
+    background-color: #9393FF;
+    padding-left: 8px;
+    padding-right: 8px;
+}
+
+.message {
+    float: right;
+    padding-top: 8px;
+    padding-bottom: 4px;
+    color: brown;
 }
 
 /*

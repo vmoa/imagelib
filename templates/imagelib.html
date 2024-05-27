@@ -26,47 +26,75 @@
 
                 <div class="filters" id="filters">
 
-                    <!-- date -->
+                    <!-- filter line one -->
                     <span class="right">
-                        <form id="date" method="post" action="/">
-                        <input type="hidden" name="target" value="{{ target }}">
+
+                        <!-- date -->
+                        <span class="right">
+                            <form id="date" method="post" action="/">
+                            <input type="hidden" name="target" value="{{ target }}">
+                            <input type="hidden" name="last_target" value="{{ target }}">
+                            <input type="hidden" name="imgfilter" value="{{ imgfilter }}"/>
+                            <span class="right"><input type="image" border="0" src="static/search.png" height="28" alt="[Search]"></span>
+                            <span style="float:right; padding-top:4px;">
+                                Date:&nbsp;<input class="dropdown" id="awesomeDate" name="start" value="{{ date }}" />&nbsp;
+                                <datalist id="datelist">{% for date in obsDates %}
+                                  <option>{{ date }}</option>{% endfor %}
+                                </datalist>
+                            </span>
+                            </form>
+                        </span>
+
+                        <!-- target -->
+                        <span class="right"><img src="static/1x1-transparent.png" width="22" height="1"></span>
+                        <span class="right">
+                            <form id="target" method="post" action="/">
+                            <input type="hidden" name="start" value="{{ date }}">
+                            <input type="hidden" name="last_target" value="{{ target }}">
+                            <input type="hidden" name="imgfilter" value="{{ imgfilter }}"/>
+                            <span class="right"><input type="image" border="0" src="static/search.png" height="28" alt="[Search]"></span>
+                            <span style="float:right; padding-top:4px;">
+                                Target:&nbsp;<input class="dropdown" id="awesomeTarget" name="target" value="{{ target }}" />&nbsp;
+                                <datalist id="targetlist">{% for target in allTargets %}
+                                  <option>{{ target }}</option>{% endfor %}
+                                </datalist>
+                            </span>
+                            </form>
+                        </span>
+
+                    </span>
+
+                    <!-- Filter line 2: Image type -->
+                    <br/>
+
+                    <span class="right"><img src="static/1x1-transparent.png" width="82" height="1"></span>
+                    <span class="right">
+                        <form id="imagetype" method="post" action="/">
+                        <input type="hidden" name="start" value="{{ date }}">
                         <input type="hidden" name="last_target" value="{{ target }}">
-                        <span class="right"><input type="image" border="0" src="static/search.png" height="28" alt="[Search]"></span>
-                        <span style="float:right; padding-top:4px;">
-                        Date:&nbsp;<input class="dropdown" id="awesomeDate" name="start" value="{{ date }}" />&nbsp;
-                        <datalist id="datelist">{% for date in obsDates %}
-                          <option>{{ date }}</option>{% endfor %}
-                        </datalist>
+                        <span class="right"><input type="image" border="0" src="static/search.png" height="28" alt="[Filter]"></span>
+                        <span style="float:right; padding-top:4px; padding-right:8px;">
+                            Show only:
+                            <input type="checkbox" value="calibration" name="imgfilter" {{ imgfilter_checked.calibration }}/>Calibration
+                            <input type="checkbox" value="target" name="imgfilter" {{ imgfilter_checked.target }}/>Target
                         </span>
                         </form>
                     </span>
 
-                    <!-- target -->
-                    <span class="right"><img src="static/1x1-transparent.png" width="22" height="1"></span>
-                    <span class="right">
-                        <form id="target" method="post" action="/">
-                        <input type="hidden" name="start" value="{{ date }}">
-                        <input type="hidden" name="last_target" value="{{ target }}">
-                        <span class="right"><input type="image" border="0" src="static/search.png" height="28" alt="[Search]"></span>
-                        <span style="float:right; padding-top:4px;">
-                        Target:&nbsp;<input class="dropdown" id="awesomeTarget" name="target" value="{{ target }}" />&nbsp;
-                        <datalist id="targetlist">{% for target in allTargets %}
-                          <option>{{ target }}</option>{% endfor %}
-                        </datalist>
-                        </form>
-                    </span>
-
-                    <!-- possible messages -->
-                    <span class="right"><img src="static/1x1-transparent.png" width="22" height="1"></span>
-                    <span class="right">
-                    {% with messages = get_flashed_messages() %}
-                     {% if messages %}
-                      {% for message in messages %}
-                        <font color="brown">{{ message }}</font>
-                      {% endfor %}
-                     {% endif %}
-                    {% endwith %}
-                    </span>
+                    <!-- Filter line 3: Possible messages -->
+                    {% if messages %}
+                      <br/>
+                      <span class="right"><img src="static/1x1-transparent.png" width="22" height="1"></span>
+                      <span class="message">
+                      {% with messages = get_flashed_messages() %}
+                       {% if messages %}
+                        {% for message in messages %}
+                          <font color="brown">{{ message }}</font><br/>
+                        {% endfor %}
+                       {% endif %}
+                      {% endwith %}
+                      </span>
+                    {% endif %}
 
                 </div>
             </div>
