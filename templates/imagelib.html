@@ -74,9 +74,10 @@
                         <input type="hidden" name="last_target" value="{{ target }}">
                         <span class="right"><input type="image" border="0" src="static/search.png" height="28" alt="[Filter]"></span>
                         <span style="float:right; padding-top:4px; padding-right:8px;">
-                            Show only:
-                            <input type="checkbox" value="calibration" name="imgfilter" {{ imgfilter_checked.calibration }}/>Calibration
-                            <input type="checkbox" value="target" name="imgfilter" {{ imgfilter_checked.target }}/>Target
+                            Show:
+                            <input type="radio" value="cal"  name="imgfilter" {{ imgfilter_checked.cal }}/>Calibration Frames
+                            <input type="radio" value="tgt"  name="imgfilter" {{ imgfilter_checked.tgt }}/>Targets
+                            <input type="radio" value="both" name="imgfilter" {{ imgfilter_checked.both }}/>Both
                         </span>
                         </form>
                     </span>

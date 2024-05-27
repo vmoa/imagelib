@@ -84,10 +84,10 @@ class FitsFiles:
         ### print(">>> IMAGETYP: <{}>".format(headers['IMAGETYP'].lower()))
         if ('IMAGETYP' in headers and headers['IMAGETYP'].lower() in self.CFrames.keys()):
             record['target'] = "{} {}s".format(self.CFrames[headers['IMAGETYP'].lower()], int(headers['EXPTIME']))
-            record['imagetype'] = 'Calibration'
+            record['imagetype'] = 'cal'
         else:
             record['target'] = catalog.Catalog.cname(record['object'])
-            record['imagetype'] = 'Target'
+            record['imagetype'] = 'tgt'
 
         record['timestamp'] = headers['DATE-OBS']           # ISO 8601 (GMT) eg: 2023-05-20T05:41:18.042
         record['date'] = datetime.datetime.fromisoformat(headers['DATE-OBS']).strftime('%Y-%m-%d')  # YYYY-MM-DD (GMT) convenient for sorting

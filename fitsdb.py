@@ -75,7 +75,7 @@ if (__name__ == "__main__"):
         #   `path` is the filesystem path to the fits file
         #   `preview` is the filesystem path to the full scale png preview file
         #   `thumbnail` is the filesystem path to the scaled thumbnail png file
-        #   `imagetypee` is type of image, either "Calibration" or "Target"
+        #   `imagetypee` is type of image, either "cal" or "tgt"
         cur = db.con.cursor()
         try:
             cur.execute('''
@@ -165,7 +165,7 @@ if (__name__ == "__main__"):
             print('ERROR: ' + ' '.join(er.args))
             sys.exit(1)
 
-        # Now walk all rows and collect id's of Calibration and Target frames
+        # Now walk all rows and collect id's of cal and tgt frames
         cal_ids = list()
         tgt_ids = list()
         cal_re = re.compile('(Flat|Bias|Dark) Frame')
@@ -178,12 +178,12 @@ if (__name__ == "__main__"):
                 tgt_ids.append(id)
 
         # Update calibration imagetype
-        sql = "update fits set imagetype = 'Calibration' where id in ( {} )".format(','.join(str(x) for x in cal_ids))
+        sql = "update fits set imagetype = 'cal' where id in ( {} )".format(','.join(str(x) for x in cal_ids))
         print(">>> {}".format(sql))
         cur.execute(sql)
 
         # Update target imagetype
-        sql = "update fits set imagetype = 'Target' where id in ( {} )".format(','.join(str(x) for x in tgt_ids))
+        sql = "update fits set imagetype = 'tgt' where id in ( {} )".format(','.join(str(x) for x in tgt_ids))
         print(">>> {}".format(sql))
         cur.execute(sql)
 
