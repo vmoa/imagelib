@@ -118,7 +118,7 @@ class Markup:
         images['imgfilter'] = ','.join(imgfilter)
         images['imgfilter_checked'] = dict()
         for filter in [ 'calibration', 'target' ]:
-            images['imgfilter_check'][filter] = 'checked' if filter in imgfilter else ''
+            images['imgfilter_checked'][filter] = 'checked' if filter in imgfilter else ''
 
         search_type = self.searchType(target)
         targets = self.fetchTargets(target, search_type)
