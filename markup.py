@@ -19,9 +19,11 @@ class Markup:
 
     def __init__(self):
         self.db = fitsdb.Fitsdb()
-        with open('VERSION', 'r') as vfile:
+        version_fn = 'VERSION' if os.path.exists('VERSION') else '/home/nas/flask/imagelib/VERSION'
+        with open(version_fn, 'r') as vfile:
             self.version = vfile.readline().strip()
         print(">>> Markup version {}; connected to {}".format(self.version, self.db))
+        print(">>> Working directory: {}".format(os.getcwd()))
 
     def reset(self):
         '''Reset lists each time we're called.'''
