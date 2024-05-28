@@ -21,64 +21,96 @@ class Markup:
         self.db = fitsdb.Fitsdb()
         print(">>> Markup init; connecting to db: ", self.db)
 
-    def searchType(self, target):
-        '''Do a `select count(*)` for target and return all|exact|fuzzy depending on results. Side effect sets self.what.'''
-        if (not target):
-            self.search_type = 'all'
-            self.what = 'ALL'
-        else:
+    def reset(self):
+        '''Reset lists each time we're called.'''
+        print('>>> markup.reset()')
+        self.where_list = list()  # Where clause
+        self.what_list = list()   # Human description for page title
+
+    def add_where(self, w):
+        self.where_list.append(w)
+
+    def get_where(self):
+        return(' AND '.join(self.where_list))
+
+    def add_what(self, w):
+        self.what_list.append(w)
+
+    def get_what(self):
+        return(' '.join(self.what_list))
+
+    def buildWhere_imgfilter(self, imgfilter):
+        '''Upeate where clause to restrict by imgfilter if either cal or tgt selected. (Both doesn't require a where clause.)'''
+        if (imgfilter == 'cal'):
+            self.add_where('imagetype = "cal"')
+            self.add_what('Calibration:')
+        elif (imgfilter == 'tgt'):
+            self.add_where('imagetype = "tgt"')
+            self.add_what('Target:')
+
+    def buildWhere_target(self, target):
+        '''Update where cluse to match target if exact match, else do a fuzzy lookup.'''
+        if (target):
             cur = self.db.con.cursor()
-            if (cur.execute("select count(*) from fits where target = ?", [ target ]).fetchone()[0] > 0):
-                self.search_type = 'exact'
-                self.what = target
+            sql = "select count(*) from fits where target = ?"
+            if (self.where_list):
+                sql += " and {}".format(self.get_where())
+            if (cur.execute(sql, [ target ]).fetchone()[0] > 0):
+                self.add_where('target = "{}"'.format(target))  # Query above untaints target
+                self.add_what(target)
             else:
-                self.search_type = 'fuzzy'
-                self.what = 'matching <' + target + '>'
-        print(">>> searchType({}) ==> {} (what:{})".format(target, self.search_type, self.what))
-        return(self.search_type)
+                self.add_where('target like "%{}%"'.format(target))
+                self.add_what('matching <{}>'.format(target))
 
-    def fetchTargets(self, target=None, search_type=None):
+        if (not self.what_list):
+                self.add_what('ALL')
+
+    def fetchTargets(self, target=None):
         '''Return list of distinct targets that match, handling empty target and fuzzy matches.'''
-        cur = self.db.con.cursor()
-        if (search_type == 'all'):
-            cur.execute("select distinct(target) from fits order by target")
-        elif (search_type == 'exact'):
-            cur.execute("select distinct(target) from fits where target = ? order by target", [target])
-        else:
-            cur.execute("select distinct(target) from fits where target like ? order by target", [ '%'+target+'%' ])
+        sql = "SELECT DISTINCT(target) FROM fits"
+        if (self.where_list):
+            sql += " WHERE {}".format(self.get_where())
+        sql += ' ORDER BY target'
 
+        print(">>> {}".format(sql))    ### DEBUG
+        cur = self.db.con.cursor()
+        cur.execute(sql)
         targets = list()
         for row in cur.fetchall():
             targets.append(row[0])
         print(">>> fetchTargets({}) ==> {} rows".format(target, len(targets)))
         return(targets)
 
-    def fetchDates(self, target=None, search_type=None):
+    def fetchDates(self, target=None):
         '''Return list of distinct dates for this target, handling empty target and fuzzy matches.'''
-        cur = self.db.con.cursor()
-        if (search_type == 'all'):
-            cur.execute("select distinct(date) from fits order by date desc")
-        elif (search_type == 'exact'):
-            cur.execute("select distinct(date) from fits where target = ? order by date desc", [target])
-        else:
-            cur.execute("select distinct(date) from fits where target like ? order by date desc", [ '%'+target+'%' ])
+        sql = "SELECT DISTINCT(date) FROM fits"
+        if (self.where_list):
+            sql += " WHERE {}".format(self.get_where())
+        sql += " ORDER BY date DESC"
 
+        print(">>> {}".format(sql))    ### DEBUG
+        cur = self.db.con.cursor()
+        cur.execute(sql)
         dates = list()
         for row in cur.fetchall():
             dates.append(row[0])
         print(">>> fetchDates({}) ==> {} rows".format(target, len(dates)))
         return(dates)
 
-    def fetchDetails(self, target=None, date=None, search_type=None):
+    def fetchDetails(self, target=None, date=None):
         '''Return list of details (tuple) that match target and date.'''
         cur = self.db.con.cursor()
-        if (search_type == 'all'):
-            cur.execute("select id, target, thumbnail, preview from fits where date = ? order by id", [ date ])
-        elif (search_type == 'exact'):
-            cur.execute("select id, target, thumbnail, preview from fits where target = ? and date = ? order by id", [ target, date ])
+        sql = "SELECT id, target, thumbnail, preview FROM fits"
+        if (self.where_list):
+            sql += " WHERE {}".format(self.get_where())
+            sql += " AND date = ?"
         else:
-            cur.execute("select id, target, thumbnail, preview from fits where target like ? and date = ? order by id", [ '%'+target+'%', date ])
+            sql += " WHERE date = ?"
+        sql += " ORDER BY id"
 
+        print(">>> {} with ({})".format(sql,date))    ### DEBUG
+        cur = self.db.con.cursor()
+        cur.execute(sql, [date])
         details = list()
         for row in cur.fetchall():
             details.append(row)
@@ -111,17 +143,19 @@ class Markup:
     def build_images(self, start=None, target=None, imgfilter='both', lastTarget=None):
         '''Build a template (dictionary) of which images to display.'''
         print(">>> build_images(start={}, target={}, imgfilter={}, lastTarget={})".format(start,target,imgfilter,lastTarget))
+        self.reset()
 
         images = dict()
-        images['allTargets'] = self.fetchTargets(search_type = 'all')
+        self.buildWhere_imgfilter(imgfilter)
+        images['allTargets'] = self.fetchTargets(None)  # for autofill
 
         images['imgfilter'] = imgfilter
         images['imgfilter_checked'] = dict()
         for filter in [ 'cal', 'tgt', 'both' ]:
             images['imgfilter_checked'][filter] = 'checked' if filter == imgfilter else ''
 
-        search_type = self.searchType(target)
-        targets = self.fetchTargets(target, search_type)
+        self.buildWhere_target(target)
+        targets = self.fetchTargets(target)
         if (len(targets) == 0):
             # Flash an error and refetch lastTarget
             print(">>> target not found")
@@ -138,7 +172,7 @@ class Markup:
             images['start'] = ''
             start = None
 
-        dates = self.fetchDates(target, search_type)
+        dates = self.fetchDates(target)
         startX = self.findStartDate(dates, start)
         if (start):
             images['date'] = dates[startX]
@@ -148,7 +182,7 @@ class Markup:
 
         print(">>> dates: ({} of 'em)".format(len(dates)))
         print(">>> start: {}".format(start))
-        images['title'] = "RFO Image Library: {}".format(self.what)  # set in searchType() as a side effect of any fetchXxx() call
+        images['title'] = "RFO Image Library: {}".format(self.get_what())  # set in searchType() as a side effect of any fetchXxx() call
 
         thumb_count = 0
         images['collections'] = list()
@@ -163,15 +197,15 @@ class Markup:
             prefix = "rfo_{}".format(date)
             collection['id'] = prefix
             collection['prefix'] = prefix
-            if (self.what == target):
-                collection['title'] = "{}: {}".format(self.what, date)
+            if (self.what_list):
+                collection['title'] = "{}: {}".format(self.get_what(), date)
             else:
                 collection['title'] = date
             collection['pics'] = list()
 
             # Fetch pic details for this date
             sequence = 0
-            rows = self.fetchDetails(target, date, search_type)
+            rows = self.fetchDetails(target, date)
             for row in rows:
                 thumb_count += 1
                 sequence += 1
