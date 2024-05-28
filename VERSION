@@ -1,6 +1,10 @@
-v2.1.1
+v2.1.2
 
 Version history:
+
+v2.1.2: Tue May 28 15:21:47 PDT 2024
+
+    use hard coded VERSION file if not in cwd
 
 v2.1.1: Tue May 28 15:06:30 PDT 2024
 
