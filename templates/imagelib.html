@@ -131,6 +131,7 @@
                     <input type="hidden" name="last_target" value="{{ target }}">
                     {% endif %}
                     <input type="hidden" name="start" value="{{ prev }}">
+                    <input type="hidden" name="imgfilter" value="{{ imgfilter }}"/>
                     <span class="left"><input type="image" border="0" src="static/prev.png" height="28" alt="[Prev]"></span>
                     </form>
                 {% endif %}
@@ -141,6 +142,7 @@
                     <input type="hidden" name="last_target" value="{{ target }}">
                     {% endif %}
                     <input type="hidden" name="start" value="{{ next }}">
+                    <input type="hidden" name="imgfilter" value="{{ imgfilter }}"/>
                     <span class="right"><input type="image" border="0" src="static/next.png" height="28" alt="[Next]"></span>
                     </form>
                 {% else %}
