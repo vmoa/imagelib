@@ -19,13 +19,22 @@ class Markup:
 
     def __init__(self):
         self.db = fitsdb.Fitsdb()
-        print(">>> Markup init; connecting to db: ", self.db)
+        with open('VERSION', 'r') as vfile:
+            self.version = vfile.readline().strip()
+        print(">>> Markup version {}; connected to {}".format(self.version, self.db))
 
     def reset(self):
         '''Reset lists each time we're called.'''
         print('>>> markup.reset()')
         self.where_list = list()  # Where clause
         self.what_list = list()   # Human description for page title
+
+        # Collect some stats
+        cur = self.db.con.cursor()
+        self.total_rows = cur.execute("select count(*) from fits").fetchone()[0]
+        self.total_cals = cur.execute("select count(*) from fits where imagetype = 'cal'").fetchone()[0]
+        self.total_tgts = cur.execute("select count(*) from fits where imagetype = 'tgt'").fetchone()[0]
+        self.distinct_tgts = cur.execute("select count(distinct(target)) from fits where imagetype = 'tgt'").fetchone()[0]
 
     def add_where(self, w):
         self.where_list.append(w)
@@ -147,6 +156,12 @@ class Markup:
 
         images = dict()
         self.buildWhere_imgfilter(imgfilter)
+        images['version'] = self.version
+        images['total_rows'] = self.total_rows
+        images['total_cals'] = self.total_cals
+        images['total_tgts'] = self.total_tgts
+        images['distinct_tgts'] = self.distinct_tgts
+
         images['allTargets'] = self.fetchTargets(None)  # for autofill
 
         images['imgfilter'] = imgfilter

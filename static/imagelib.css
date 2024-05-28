@@ -44,9 +44,21 @@ div.page_title_bar, div.page_footer_bar {
     font-size: 18px;
 }
 
+.page_title_left {
+    float: left;
+    padding-left: 2px;
+    padding-right: 8px;
+}
+
 .page_title_title {
     color: #4287f5;
     font-size: 24px;
+}
+
+.homebuttons {
+    float: right;
+    padding-left: 22px;
+    padding-right: 8px;
 }
 
 .filters {

@@ -13,16 +13,34 @@
         <div class="container" id="container">
 
             <div class="page_title_bar" id="page_title_bar">
-                <span class="page_title_title">{{ title }}</span>
-                <span class="right"><a href='/' alt='Home'><image src="static/home.png" height="28" alt="[Home]"></a></span>
-                <span class="right"><img src="static/1x1-transparent.png" width="8" height="1"></span>
-                <span class="right"><form name="dlform" method="POST" onSubmit="return(setRecids());" action="/download">
-                    <input type="hidden" name="recids">
-                    <input type="image" border="0" src="static/download.png" height="28" alt="[Download]">
-                </form></span>
-                <span class="right"><img src="static/1x1-transparent.png" width="8" height="1"></span>
-                <span class="right"><image src="static/help.png" height="28" alt="[Help]" onClick="help()"></span>
-                <span class="right"><img src="static/1x1-transparent.png" width="22" height="1"></span>
+
+                <div class="page_title_left" id="page_title_left">
+                    <span class="page_title_title">{{ title }}</span>
+                    <br/>
+                    <span class="left" style="padding-left:10px; padding-top:4px;">Total images: {{ total_rows }}, Distinct names: {{ distinct_tgts }}</span>
+                    <br/>
+                    <span class="left" style="padding-left:10px;">Total targets: {{ total_tgts }}, Calibration frames: {{ total_cals }}</span>
+                </div>
+
+                <div class="homebuttons" id="homebuttons">
+                    <!-- buttons line one -->
+                    <span class="right">
+                        <span class="right"><a href='/' alt='Home'><image src="static/home.png" height="28" alt="[Home]"></a></span>
+                        <span class="right"><img src="static/1x1-transparent.png" width="8" height="1"></span>
+                        <span class="right">
+                            <form name="dlform" method="POST" onSubmit="return(setRecids());" action="/download">
+                            <input type="hidden" name="recids">
+                            <input type="image" border="0" src="static/download.png" height="28" alt="[Download]">
+                            </form>
+                        </span>
+                        <span class="right"><img src="static/1x1-transparent.png" width="8" height="1"></span>
+                        <span class="right"><image src="static/help.png" height="28" alt="[Help]" onClick="help()"></span>
+                    </span>
+
+                    <!-- buttons line two -->
+                    <br/>
+                    <span class="right" style="padding-top:4px;">Version: {{ version }}</span>
+                </div>
 
                 <div class="filters" id="filters">
 
