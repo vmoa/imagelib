@@ -71,6 +71,10 @@ Session.vim
 .netrwhist
 *~
 
+# Microsoft Office temporary files #
+####################################
+^~$*
+
 # Revision Control System #
 ###########################
 RCS
