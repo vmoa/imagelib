@@ -73,7 +73,7 @@ Session.vim
 
 # Microsoft Office temporary files #
 ####################################
-^~$*
+~$*
 
 # Revision Control System #
 ###########################
