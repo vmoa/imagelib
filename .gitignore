@@ -7,6 +7,7 @@ fits.last_run
 fits.db*
 fits/
 Eagle/
+SAC_DeepSky*
 
 # Awesomeplete: https://github.com/LeaVerou/awesomplete
 static/awesomplete
