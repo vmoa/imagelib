@@ -2,6 +2,7 @@
 # Database routeines using SQLite database
 #
 
+import logging
 import os
 import re
 import sys
@@ -31,7 +32,7 @@ class Fitsdb:
 
     def insert(self, image):
         '''Insert image (dictionary) into the database.'''
-        #print(">>> fitsdb.insert(): imagetype: {}".format(image['imagetype']))   # DEBUG
+        logging.debug(">>> fitsdb.insert(): imagetype: {}".format(image['imagetype']))
         cols = list()
         vals = list()
         qmarks = list()
@@ -44,7 +45,7 @@ class Fitsdb:
 
         cur = self.con.cursor()
         sql = 'insert into fits ({}) values ({})'.format(', '.join(cols), questionmarks)
-        # print(">>> {} WITH {}".format(sql, vals)) ###DEBUG
+        logging.debug(">>> {} WITH {}".format(sql, vals))
         try:
             cur.execute(sql, vals)
             self.con.commit()
@@ -64,6 +65,10 @@ if (__name__ == "__main__"):
 
     command = None
     if (len(sys.argv) > 1):
+        if (sys.argv[1] == '--debug'):
+            logging.basicConfig(level=logging.DEBUG)
+            logging.debug("Commencing diagnostic DEBUG drivel")
+            del(sys.argv[1])
         command = sys.argv[1]
 
     Commands.append('create')

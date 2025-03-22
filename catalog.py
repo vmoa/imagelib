@@ -6,6 +6,7 @@
 
 import argparse
 import datetime
+import logging
 import os
 import re
 import sqlite3
@@ -30,7 +31,7 @@ class Catalog:
     db = fitsdb.Fitsdb()
 
     def init(self):
-        ### print(">>> Connecting to database")
+        logging.debug(">>> Connecting to database")
         self.db = fitsdb.Fitsdb()
 
     @classmethod
@@ -43,12 +44,12 @@ class Catalog:
     @classmethod
     def cname(cls, object):
         '''Return the canonical name for `object`.'''
-        ### print(">>> cname({})".format(object))
+        logging.debug(">>> cname({})".format(object))
         if (not cls.db):
             cls.__init__()
         cur = cls.db.con.cursor()
         sql = "select cname from catalog_by_target where target = ?"
-        ### print(">>> {} WITH {}".format(sql, object)) ###DEBUG
+        logging.debug(">>> {} WITH {}".format(sql, object))
         row = cur.execute(sql, [ object ]).fetchone()
         if (row):
             return(row[0])
@@ -69,11 +70,16 @@ if (__name__ == "__main__"):
 
     cmd = None
     args = [ None ]
+    if (len(sys.argv) > 1):
+        if (sys.argv[1] == '--debug'):
+            logging.basicConfig(level=logging.DEBUG)
+            logging.debug("Dribbling DEBUG diagnostic declaratives")
+            del(sys.argv[1])
     if (len(sys.argv) >= 2):
         cmd = sys.argv[1]
     if (len(sys.argv) >= 3):
         args = sys.argv[2:]
-    ### print(">>> cmd: {}".format(cmd))
+    logging.debug(">>> cmd: {}".format(cmd))
 
     cat = Catalog()
     db = fitsdb.Fitsdb()
@@ -83,6 +89,7 @@ if (__name__ == "__main__"):
         catalogfile = args[0]
         if (not catalogfile):
             print("Catalog filename needed for creation. (This is probably SAC_DeepSky_VerXX_QCQ.TXT.)")
+            print("Hint: check https://www.saguaroastro.org/sac-downloads/")
             print(usage)
             sys.exit(1)
 
@@ -93,7 +100,7 @@ if (__name__ == "__main__"):
             error = None
             for table in [ 'catalog', 'catalog_by_target' ]:
                 sql = "DROP TABLE {}".format(table)
-                ### print(">>> {}".format(sql))
+                logging.debug(">>> {}".format(sql))
                 try:
                     cur.execute(sql)
                     db.con.commit()
@@ -113,9 +120,9 @@ if (__name__ == "__main__"):
         for hdr in headerline.split(','):
             header.append(cat.prettyspace(hdr).replace(' ','_'))  # boo!
             qmarks.append('?')
-        ### print(">>> headerline: {}$".format(headerline))
-        ### print(">>> header: ({}) {}".format(len(header), header))
-        ### print(">>> qmarks: ({}) {}".format(len(qmarks), qmarks))
+        logging.debug(">>> headerline: {}$".format(headerline))
+        logging.debug(">>> header: ({}) {}".format(len(header), header))
+        logging.debug(">>> qmarks: ({}) {}".format(len(qmarks), qmarks))
 
         # Build sql CREATE statement based on columns called out in headerfile
         # Note that `object`, `other` and `type` have to exist or Bad Things will happen
@@ -124,7 +131,7 @@ if (__name__ == "__main__"):
         for hdr in header:
             cols.append('{} TEXT'.format(hdr))
         sql = 'CREATE TABLE catalog ({}\n)'.format(',\n  '.join(cols))
-        ### print(">>> {}".format(sql))
+        logging.debug(">>> {}".format(sql))
 
         # Intentionally fail if table exists
         try:
@@ -152,18 +159,18 @@ if (__name__ == "__main__"):
             linenum += 1
 
             # Twiddle the data
-            ### print(">>> dataline: {}".format(dataline))
+            logging.debug(">>> dataline: {}".format(dataline))
             data = list()
             for d in dataline.rstrip().split('","'):
                 data.append(cat.prettyspace(d))
-            ### print(">>> data: {}".format(data))
+            logging.debug(">>> data: {}".format(data))
             if (len(data) != len(header)):
                 print("Not enough fields at line {}; skipping (found {} expected {})".format(linenum, len(data), len(header)))
                 next
 
             # Insert into catalog
             sql = 'INSERT INTO catalog ({}) VALUES ({})'.format(','.join(header), ','.join(qmarks))
-            ### print(">>> {}".format(sql))
+            logging.debug(">>> {}".format(sql))
             try:
                 cur.execute(sql, data)
                 # db.con.commit()
@@ -193,7 +200,7 @@ if (__name__ == "__main__"):
             for target in targets:
                 if (target):
                     sql = "insert into catalog_by_target (target, id, cname) values (?,?,?)"
-                    ### print(">>> {} {}".format(sql, [ target, id, cname ]))
+                    logging.debug(">>> {} {}".format(sql, [ target, id, cname ]))
                     cur.execute(sql, [ target, id, cname ])
                     aliasCount += 1
 

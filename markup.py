@@ -3,6 +3,7 @@
 #
 
 import flask
+import logging
 import json
 import os
 import re
@@ -83,7 +84,7 @@ class Markup:
             sql += " WHERE {}".format(self.get_where())
         sql += ' ORDER BY target'
 
-        print(">>> {}".format(sql))    ### DEBUG
+        logging.debug(">>> {}".format(sql))
         cur = self.db.con.cursor()
         cur.execute(sql)
         targets = list()
@@ -99,7 +100,7 @@ class Markup:
             sql += " WHERE {}".format(self.get_where())
         sql += " ORDER BY date DESC"
 
-        print(">>> {}".format(sql))    ### DEBUG
+        logging.debug(">>> {}".format(sql))
         cur = self.db.con.cursor()
         cur.execute(sql)
         dates = list()
@@ -119,7 +120,7 @@ class Markup:
             sql += " WHERE date = ?"
         sql += " ORDER BY id"
 
-        print(">>> {} with ({})".format(sql,date))    ### DEBUG
+        logging.debug(">>> {} with ({})".format(sql,date))
         cur = self.db.con.cursor()
         cur.execute(sql, [date])
         details = list()
@@ -281,7 +282,7 @@ class Markup:
         tags = ( 'target', 'timestamp', 'filter', 'binning', 'exposure', 'x', 'y' )
         cur = self.db.con.cursor()
         sql = "select {} from fits where id = ?".format(', '.join(tags))
-        # print(">>> {} WITH {}".format(sql, recid))  ###DEBUG
+        logging.debug(">>> {} WITH {}".format(sql, recid))
         rows = cur.execute(sql, (recid,))
 
         deets = '<p><b><u>FITS Details:</u></b></br>\n'
@@ -295,6 +296,11 @@ class Markup:
 
 
 if (__name__ == "__main__"):
+
+    if ((len(sys.argv) > 1) and (sys.argv[1] == '--debug')):
+        logging.basicConfig(level=logging.DEBUG)
+        logging.debug("Displaying diagnostic DEBUG drivel")
+        del(sys.argv[1])
 
     app = flask.Flask(__name__)
     markup = Markup()

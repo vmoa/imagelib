@@ -4,6 +4,7 @@
 
 import argparse
 import datetime
+import logging
 import json
 import os
 import re
@@ -81,7 +82,7 @@ class FitsFiles:
             record['object'] = 'No Target'
 
         # Set `target` based on calibration frame or `cname` (defaults to `object`)
-        ### print(">>> IMAGETYP: <{}>".format(headers['IMAGETYP'].lower()))
+        logging.debug(">>> IMAGETYP: <{}>".format(headers['IMAGETYP'].lower()))
         if ('IMAGETYP' in headers and headers['IMAGETYP'].lower() in self.CFrames.keys()):
             record['target'] = "{} {}s".format(self.CFrames[headers['IMAGETYP'].lower()], int(headers['EXPTIME']))
             record['imagetype'] = 'cal'
@@ -114,10 +115,10 @@ class FitsFiles:
         scaling = int(record['x'] / 128) + 1    # Reduce our image to get 128x? (or just slightly larger)
         if (self.forcepng or not os.path.exists(thumb)):
             cmd = 'fitspng -s {} -o \"{}\" \"{}\"'.format(scaling, thumb, record['path'])
-            ### print(">>> {}".format(cmd))  ###DEBUG
+            logging.debug(">>> {}".format(cmd))
             os.system(cmd)
         else:
-            print("    Thumb already exists: {}".format(thumb))  ###DEBUG
+            logging.warn("    Thumb already exists: {}".format(thumb)) 
         record['thumbnail'] = thumb
 
         return(record)
@@ -128,12 +129,12 @@ class FitsFiles:
             print("Skipping {}: File not found!".format(filename))
             return(0)
 
-        print("Importing {}".format(filename))   ###DEBUG
+        logging.warn("Importing {}".format(filename))
         headers = self.parseFitsHeader(filename)
         if (not headers):
             return(0)
         record = self.buildDatabaseRecord(filename, headers)
-        #print(">>> addFitsFile: imagetype: {}".format(record['imagetype']))  # DEBUG
+        logging.debug(">>> addFitsFile: imagetype: {}".format(record['imagetype']))
         record = self.fits2png(record)
         rowid = fitsdb.insert(record)
         if (rowid):
@@ -156,7 +157,7 @@ class FitsFiles:
         if (os.path.exists(fitsdb.tsfile)):
             newer_arg = '-newer ' + fitsdb.tsfile
         find_cmd = "find {} {} -type f -a \( -name '*\.fits' -o -name '*\.fit' \)".format(path, newer_arg)
-        ### print(">>> {}".format(find_cmd))   ###DEBUG
+        logging.debug(">>> {}".format(find_cmd))
 
         count = 0
         with os.popen(find_cmd) as find_out:
@@ -175,10 +176,15 @@ class FitsFiles:
 if (__name__ == "__main__"):
 
     parser = argparse.ArgumentParser(description='FITS file utilities.')
+    parser.add_argument('--debug', '-d', dest='debug', action='store_true', help='print diabolocal debugging dregs')
     parser.add_argument('--fitspath', '-f', dest='fitspath', action='store', help='path to fits files')
     parser.add_argument('--forcepng', '-p', dest='forcepng', action='store_true', help='force regeneration of PNG files even if they exist')
     parser.add_argument('file', nargs='*', help='full path to file to add (may be repeated)')
     args = parser.parse_args()
+
+    if (args.debug):
+        logging.basicConfig(level=logging.DEBUG)
+        logging.debug("Dumping DEBUG drivel to your display")
 
     fitsdb = fitsdb.Fitsdb()
 
