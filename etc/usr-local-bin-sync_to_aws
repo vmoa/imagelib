@@ -1,0 +1,15 @@
+#!/bin/bash
+
+nas=/nas/R_Drive/Eagle
+aws=$REMOTE_IP
+
+set -x
+
+# Purge automated images
+find $nas \( -name 'Closed Loop Slews' -print0 -o -name 'Automated Pointing Run*' \) -a -print0 | xargs -0 rm -rfv
+
+# Push to AWS
+rsync -av $nas nas@$aws:
+
+# Tell AWS to import
+ssh $aws '(date; cd /home/nas/flask/imagelib; python3 ./fitsfiles.py) >> /tmp/fitsfiles.out 2>&1'

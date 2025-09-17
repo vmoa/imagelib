@@ -1,0 +1,1 @@
+30 * * * * /usr/local/bin/sync_to_aws >> /tmp/rsync.out 2>&1
