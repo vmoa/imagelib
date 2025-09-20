@@ -4,4 +4,4 @@ Most of the bits that push imagelob images to the cloud server are here.  Probab
 
 Here's how it's all supposed to work.
 
-![ImageLib data flow](../doc/doc/imagelib_flow.png)
+![ImageLib data flow](../doc/imagelib_flow.png)
