@@ -91,7 +91,13 @@ class FitsFiles:
             record['imagetype'] = 'tgt'
 
         record['timestamp'] = headers['DATE-OBS']           # ISO 8601 (GMT) eg: 2023-05-20T05:41:18.042
-        record['date'] = datetime.datetime.fromisoformat(headers['DATE-OBS']).strftime('%Y-%m-%d')  # YYYY-MM-DD (GMT) convenient for sorting
+        datestr = headers['DATE-OBS']
+        # Split at the decimal, truncate fraction to 6 digits because NINA gives 7 digits
+        if '.' in datestr:
+            base, frac = datestr.split('.')
+            frac = frac[:6] # truncate extra digits
+            datestr = f"{base}.{frac}"
+        record['date'] = datetime.datetime.fromisoformat(datestr).strftime('%Y-%m-%d')  # YYYY-MM-DD (GMT) convenient for sorting
         if ('FILTER') in headers:
             record['filter'] = headers['FILTER'].strip()
         if ('XBINNING' in headers and 'YBINNING' in headers):
@@ -118,7 +124,7 @@ class FitsFiles:
             logging.debug(">>> {}".format(cmd))
             os.system(cmd)
         else:
-            logging.warn("    Thumb already exists: {}".format(thumb)) 
+            logging.warn("    Thumb already exists: {}".format(thumb))
         record['thumbnail'] = thumb
 
         return(record)
@@ -166,7 +172,7 @@ class FitsFiles:
 
         # Update the timestamp with our start time, but only if successful
         if (count > 0):
-            timestamp = start_time.strftime("%Y%m%d%H%M.%S")  # [[CC]YY]MMDDhhmm[.ss] 
+            timestamp = start_time.strftime("%Y%m%d%H%M.%S")  # [[CC]YY]MMDDhhmm[.ss]
             cmd = "touch -t {} {}".format(timestamp, fitsdb.tsfile)
             os.system(cmd)
 
