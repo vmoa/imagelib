@@ -9,6 +9,7 @@ import json
 import os
 import re
 import sys
+import subprocess   # Use subprocess for safer command execution
 
 from astropy.io import fits
 
@@ -111,23 +112,70 @@ class FitsFiles:
 
     def fits2png(self, record):
         '''Generate and png preview and thumbnail images; return updated database record.'''
-        preview = record['path'][:-5] + '.png'
-        if (self.forcepng or not os.path.exists(preview)):
-            cmd = 'fitspng -o \"{}\" \"{}\"'.format(preview, record['path'])
-            os.system(cmd)
-        record['preview'] = preview
 
-        thumb = record['path'][:-5] + '-thumb.png'
-        scaling = int(record['x'] / 128) + 1    # Reduce our image to get 128x? (or just slightly larger)
-        if (self.forcepng or not os.path.exists(thumb)):
-            cmd = 'fitspng -s {} -o \"{}\" \"{}\"'.format(scaling, thumb, record['path'])
-            logging.debug(">>> {}".format(cmd))
-            os.system(cmd)
-        else:
-            logging.warn("    Thumb already exists: {}".format(thumb))
-        record['thumbnail'] = thumb
+        fits_path_abs = record['path']
+        fits_dir = os.path.dirname(fits_path_abs)
+        fits_filename = os.path.basename(fits_path_abs)
 
-        return(record)
+        if not os.path.exists(fits_path_abs) or not os.access(fits_path_abs, os.R_OK):
+            logging.error(f"FATAL: FITS file not found or unreadable: {fits_path_abs}")
+            return record
+
+        # Define the intended final absolute paths
+        preview_final_abs = fits_path_abs[:-5] + '.png'
+        thumb_final_abs = fits_path_abs[:-5] + '-thumb.png'
+
+        # --- WORKAROUND: Rename the file temporarily to a simple name ---
+        # Create a safe, temporary filename within the same directory
+        temp_safe_fits_path = os.path.join(fits_dir, "temp_safe_image.fits")
+
+        try:
+            # Rename the complex file path to the simple file path
+            os.rename(fits_path_abs, temp_safe_fits_path)
+            logging.warning(f"Temporarily renamed file for fitspng compatibility.")
+
+            # --- Now process using the simple name ---
+            # The preview and thumb will also use simple names temporarily
+            temp_safe_preview = os.path.join(fits_dir, "temp_safe_image.png")
+            temp_safe_thumb = os.path.join(fits_dir, "temp_safe_image-thumb.png")
+
+            # Preview Generation
+            if (self.forcepng or not os.path.exists(preview_final_abs)):
+                cmd = ['fitspng', '-o', temp_safe_preview, temp_safe_fits_path]
+                try:
+                    subprocess.run(cmd, check=True, capture_output=True, text=True)
+                    # Move result to final name
+                    os.rename(temp_safe_preview, preview_final_abs)
+                    logging.info(f"Generated preview: {preview_final_abs}")
+                except subprocess.CalledProcessError as e:
+                    logging.error(f"fitspng failed for preview (temp file used): {e.stderr}")
+            record['preview'] = preview_final_abs
+
+            # Thumbnail Generation
+            scaling = int(record['x'] / 128) + 1
+            if (self.forcepng or not os.path.exists(thumb_final_abs)):
+                cmd = ['fitspng', '-s', str(scaling), '-o', temp_safe_thumb, temp_safe_fits_path]
+                try:
+                    subprocess.run(cmd, check=True, capture_output=True, text=True)
+                    # Move result to final name
+                    os.rename(temp_safe_thumb, thumb_final_abs)
+                    logging.info(f"Generated thumbnail: {thumb_final_abs}")
+                except subprocess.CalledProcessError as e:
+                    logging.error(f"fitspng failed for thumbnail (temp file used): {e.stderr}")
+            record['thumbnail'] = thumb_final_abs
+
+        finally:
+            # --- CRITICAL: Always rename the original file back ---
+            if os.path.exists(temp_safe_fits_path):
+                os.rename(temp_safe_fits_path, fits_path_abs)
+                logging.warning(f"Restored original filename: {fits_path_abs}")
+
+            # Clean up temp files if they somehow got left behind (optional but good practice)
+            if os.path.exists(temp_safe_preview) : os.unlink(temp_safe_preview)
+            if os.path.exists(temp_safe_thumb) : os.unlink(temp_safe_thumb)
+
+
+        return record
 
     def addFitsFile(self, filename):
         filename = filename.rstrip()
