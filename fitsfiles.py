@@ -132,7 +132,7 @@ class FitsFiles:
         try:
             # Rename the complex file path to the simple file path
             os.rename(fits_path_abs, temp_safe_fits_path)
-            logging.warning(f"Temporarily renamed file for fitspng compatibility.")
+            logging.info(f"Temporarily renamed file for fitspng compatibility.")
 
             # --- Now process using the simple name ---
             # The preview and thumb will also use simple names temporarily
@@ -168,7 +168,7 @@ class FitsFiles:
             # --- CRITICAL: Always rename the original file back ---
             if os.path.exists(temp_safe_fits_path):
                 os.rename(temp_safe_fits_path, fits_path_abs)
-                logging.warning(f"Restored original filename: {fits_path_abs}")
+                logging.info(f"Restored original filename: {fits_path_abs}")
 
             # Clean up temp files if they somehow got left behind (optional but good practice)
             if os.path.exists(temp_safe_preview) : os.unlink(temp_safe_preview)
@@ -183,7 +183,7 @@ class FitsFiles:
             print("Skipping {}: File not found!".format(filename))
             return(0)
 
-        logging.warn("Importing {}".format(filename))
+        logging.info("Importing {}".format(filename))
         headers = self.parseFitsHeader(filename)
         if (not headers):
             return(0)
