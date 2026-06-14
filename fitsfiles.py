@@ -25,6 +25,9 @@ class FitsFiles:
 
     forcepng = False
 
+    # Patterns of FITS filenames to search for (used to build `find` args dynamically)
+    FILE_PATTERNS = ['*.fits', '*.fit', '*.fits.fz']
+
     # Calibration Frame Map of FITS lower(`IMAGETYP`) --> `target` name
     CFrames = {
         'dark frame':   'Dark Frame',
@@ -206,13 +209,16 @@ class FitsFiles:
                 count += self.addFitsFile(filename)
             return(count)
 
+        # Build the find command
         start_time = datetime.datetime.now()  # On the off chance new files come in during find
         newer_arg = '';
         if (os.path.exists(fitsdb.tsfile)):
             newer_arg = '-newer ' + fitsdb.tsfile
-        find_cmd = "find {} {} -type f -a \( -name '*\.fits' -o -name '*\.fit' \)".format(path, newer_arg)
-        logging.debug(">>> {}".format(find_cmd))
+        name_tests = ' -o '.join([f"-name '{p}'" for p in self.FILE_PATTERNS])
+        find_cmd = f"find {path} {newer_arg} -type f -a \( {name_tests} \)"
+        logging.debug(f">>> {find_cmd}")
 
+        # Do the find comamand
         count = 0
         with os.popen(find_cmd) as find_out:
             for filename in find_out:
