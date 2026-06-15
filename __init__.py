@@ -25,7 +25,16 @@ dictConfig({
 
 import flask
 app = flask.Flask(__name__)
-app.secret_key = 'allyourbasearebelongtous'
+
+_secret_key = os.environ.get('IMAGELIB_SECRET_KEY')
+if not _secret_key:
+    _key_file = os.path.join(prodhome, '.secret_key') if os.path.exists(prodhome) else '.secret_key'
+    if os.path.exists(_key_file):
+        with open(_key_file) as _f:
+            _secret_key = _f.read().strip()
+if not _secret_key:
+    raise RuntimeError('Set IMAGELIB_SECRET_KEY env var or create .secret_key file')
+app.secret_key = _secret_key
 
 import markup
 markup = markup.Markup()
@@ -37,7 +46,7 @@ markup = markup.Markup()
 
 @app.route('/', methods=['GET','POST'])
 def top():
-    print("Args: ", flask.request.args.to_dict(), " Form: ", flask.request.form.to_dict())
+    app.logger.debug("Args: {}  Form: {}".format(flask.request.args.to_dict(), flask.request.form.to_dict()))
     t = markup.build_images(start = flask.request.form.get('start'),
                             target = flask.request.form.get('target'),
                             imgfilter = flask.request.form.get('imgfilter'),
@@ -46,17 +55,17 @@ def top():
 
 @app.route('/search', methods=['GET','POST'])
 def search():
-    print("Args: ", flask.request.args.to_dict(), " Form: ", flask.request.form.to_dict())
+    app.logger.debug("Args: {}  Form: {}".format(flask.request.args.to_dict(), flask.request.form.to_dict()))
     target = flask.request.args.get('target')
-    app.logger.info("DEBUG: search target={}".format(target))
+    app.logger.debug("search target={}".format(target))
     t = markup.build_images(target = target)
     return flask.render_template('imagelib.html', **t)
 
 @app.route('/download', methods=['GET','POST'])
 def download():
-    app.logger.info("DEBUG: download({})".format(flask.request.form.get('recids')))
+    app.logger.debug("download({})".format(flask.request.form.get('recids')))
     tempfn = markup.zipit(flask.request.form.get('recids'))
-    app.logger.info("DEBUG: sending {}".format(tempfn))
+    app.logger.debug("sending {}".format(tempfn))
     response = flask.send_file(tempfn, as_attachment=True)
     return response
     # unlink(tempfn)
@@ -64,7 +73,7 @@ def download():
 @app.route('/deets', methods=['GET'])
 def deets():
     recid = flask.request.args.get('recid')
-    app.logger.info("DEBUG: deets({})".format(recid))
+    app.logger.debug("deets({})".format(recid))
     return flask.render_template_string(markup.fetchDeets(recid))
 
 @app.route('/favicon.ico')

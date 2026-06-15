@@ -131,6 +131,8 @@ class FitsFiles:
         # --- WORKAROUND: Rename the file temporarily to a simple name ---
         # Create a safe, temporary filename within the same directory
         temp_safe_fits_path = os.path.join(fits_dir, "temp_safe_image.fits")
+        temp_safe_preview = None
+        temp_safe_thumb = None
 
         try:
             # Rename the complex file path to the simple file path
@@ -180,7 +182,7 @@ class FitsFiles:
 
         return record
 
-    def addFitsFile(self, filename):
+    def addFitsFile(self, filename, db):
         filename = filename.rstrip()
         if (not os.path.exists(filename)):
             print("Skipping {}: File not found!".format(filename))
@@ -193,7 +195,7 @@ class FitsFiles:
         record = self.buildDatabaseRecord(filename, headers)
         logging.debug(">>> addFitsFile: imagetype: {}".format(record['imagetype']))
         record = self.fits2png(record)
-        rowid = fitsdb.insert(record)
+        rowid = db.insert(record)
         if (rowid):
             return(1)
         else:
@@ -206,29 +208,33 @@ class FitsFiles:
             # Skip all the find logic and just add files
             count = 0
             for filename in files:
-                count += self.addFitsFile(filename)
+                count += self.addFitsFile(filename, fitsdb)
             return(count)
 
         # Build the find command
         start_time = datetime.datetime.now()  # On the off chance new files come in during find
-        newer_arg = '';
-        if (os.path.exists(fitsdb.tsfile)):
-            newer_arg = '-newer ' + fitsdb.tsfile
-        name_tests = ' -o '.join([f"-name '{p}'" for p in self.FILE_PATTERNS])
-        find_cmd = f"find {path} {newer_arg} -type f -a \( {name_tests} \)"
-        logging.debug(f">>> {find_cmd}")
+        find_cmd = ['find', path]
+        if os.path.exists(fitsdb.tsfile):
+            find_cmd += ['-newer', fitsdb.tsfile]
+        name_args = []
+        for pattern in self.FILE_PATTERNS:
+            if name_args:
+                name_args.append('-o')
+            name_args += ['-name', pattern]
+        find_cmd += ['-type', 'f', '-a', '('] + name_args + [')']
+        logging.debug(">>> {}".format(find_cmd))
 
         # Do the find comamand
         count = 0
-        with os.popen(find_cmd) as find_out:
-            for filename in find_out:
-                count += self.addFitsFile(filename)
+        result = subprocess.run(find_cmd, capture_output=True, text=True)
+        for filename in result.stdout.splitlines():
+            if filename:
+                count += self.addFitsFile(filename, fitsdb)
 
         # Update the timestamp with our start time, but only if successful
         if (count > 0):
             timestamp = start_time.strftime("%Y%m%d%H%M.%S")  # [[CC]YY]MMDDhhmm[.ss]
-            cmd = "touch -t {} {}".format(timestamp, fitsdb.tsfile)
-            os.system(cmd)
+            subprocess.run(['touch', '-t', timestamp, fitsdb.tsfile])
 
         return(count)
 

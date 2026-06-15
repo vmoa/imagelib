@@ -101,7 +101,7 @@ function setRecids() {
     }
 }
 
-/* Reutrn just the filename component of a full path */
+/* Return just the filename component of a full path */
 function basename(path) {
    return path.split('/').reverse()[0];
 }
@@ -110,14 +110,14 @@ function basename(path) {
 function keydownHandler(event) {
     console.log("keydownHandler(" + event + ")");
     if (document.getElementById("preview-container").style.display == "block") {
-        if (event.keyCode === 27) {  // <ESC> keycode
+        if (event.key === 'Escape') {
             closePreview();
-        } else if (event.keyCode === 32) {  // <SPACE> keycode
+        } else if (event.key === ' ') {
             toggleSelect(previewElement, -1);
         }
     }
     if (document.getElementById("help-container").style.display == "block") {
-        if (event.keyCode === 27) {  // <ESC> keycode
+        if (event.key === 'Escape') {
             closeHelp();
         }
     }
@@ -159,8 +159,8 @@ function preview(el) {
 }
 
 /* Special flavor of toggle() that also colors the preview border */
-function toggleSelect(el) {
-    select(el, -1);
+function toggleSelect(el, mode) {
+    select(el, mode);
     document.getElementById("preview-content").style.borderColor = document.getElementById(el).rfoIsSelected ? color_selected : color_unselected;
 }
 
@@ -181,7 +181,7 @@ function help() {
         }
     };
     xhttp.open("GET", "static/help.html", true);
-    console.log("fetching static/help.hmtl");
+    console.log("fetching static/help.html");
     xhttp.send();
     document.addEventListener("keydown", keydownHandler);
     document.getElementById("help-container").style.display = "block";

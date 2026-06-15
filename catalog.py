@@ -28,7 +28,7 @@ class Catalog:
 
     re_messier = re.compile('^M \d+$')
 
-    db = fitsdb.Fitsdb()
+    db = None
 
     def init(self):
         logging.debug(">>> Connecting to database")
@@ -45,8 +45,8 @@ class Catalog:
     def cname(cls, object):
         '''Return the canonical name for `object`.'''
         logging.debug(">>> cname({})".format(object))
-        if (not cls.db):
-            cls.__init__()
+        if cls.db is None:
+            cls.db = fitsdb.Fitsdb()
         cur = cls.db.con.cursor()
         sql = "select cname from catalog_by_target where target = ?"
         logging.debug(">>> {} WITH {}".format(sql, object))
@@ -93,132 +93,132 @@ if (__name__ == "__main__"):
             print(usage)
             sys.exit(1)
 
-        file = open(catalogfile)
-        cur = db.con.cursor()
+        with open(catalogfile) as file:
+            cur = db.con.cursor()
 
-        if (cmd == 'recreate'):
-            error = None
-            for table in [ 'catalog', 'catalog_by_target' ]:
-                sql = "DROP TABLE {}".format(table)
-                logging.debug(">>> {}".format(sql))
-                try:
-                    cur.execute(sql)
-                    db.con.commit()
-                    print("Table {} dropped".format(table))
-                except sqlite3.Error as er:
-                    print('ERROR: ' + ' '.join(er.args))
-                    if (er.args[0][0:14] == 'no such table:'):
-                        error = 1
-            if (error):
-                print('You meant maybe `create` instead?')
-                sys.exit(1)
-
-        # Parse header into a list (and build our qmarks)
-        headerline = file.readline().rstrip().replace('"','').lower()
-        header = list()
-        qmarks = list()
-        for hdr in headerline.split(','):
-            header.append(cat.prettyspace(hdr).replace(' ','_'))  # boo!
-            qmarks.append('?')
-        logging.debug(">>> headerline: {}$".format(headerline))
-        logging.debug(">>> header: ({}) {}".format(len(header), header))
-        logging.debug(">>> qmarks: ({}) {}".format(len(qmarks), qmarks))
-
-        # Build sql CREATE statement based on columns called out in headerfile
-        # Note that `object`, `other` and `type` have to exist or Bad Things will happen
-        cols = list()
-        cols.append('id INTEGER PRIMARY KEY AUTOINCREMENT')
-        for hdr in header:
-            cols.append('{} TEXT'.format(hdr))
-        sql = 'CREATE TABLE catalog ({}\n)'.format(',\n  '.join(cols))
-        logging.debug(">>> {}".format(sql))
-
-        # Intentionally fail if table exists
-        try:
-            cur.execute(sql)
-            cur.execute("CREATE UNIQUE INDEX catalog_object_index ON catalog (object)")
-            cur.execute("CREATE INDEX catalog_type_index ON catalog (type)")
-            cur.execute("CREATE TABLE catalog_by_target ( target TEXT, id INTEGER, cname TEXT )")
-            cur.execute("CREATE INDEX catalog_by_target_target_index ON catalog_by_target (target)")
-            cur.execute("CREATE INDEX catalog_by_target_id_index ON catalog_by_target (id)")
-            db.con.commit()
-        except sqlite3.Error as er:
-            print('ERROR: ' + ' '.join(er.args))
-            if (er.args[0] == 'table catalog already exists'):
-                print("HINT: If you really want to recreate it, rerun using `recreate`")
-            sys.exit(1)
-
-        print("Tables catalog, catalog_by_target created")
-
-        # Insert data
-        linenum = 1  # We already processed header
-        insertCount = 0
-        aliasCount = 0
-        datalines = file.readlines()
-        for dataline in datalines:
-            linenum += 1
-
-            # Twiddle the data
-            logging.debug(">>> dataline: {}".format(dataline))
-            data = list()
-            for d in dataline.rstrip().split('","'):
-                data.append(cat.prettyspace(d))
-            logging.debug(">>> data: {}".format(data))
-            if (len(data) != len(header)):
-                print("Not enough fields at line {}; skipping (found {} expected {})".format(linenum, len(data), len(header)))
-                next
-
-            # Insert into catalog
-            sql = 'INSERT INTO catalog ({}) VALUES ({})'.format(','.join(header), ','.join(qmarks))
-            logging.debug(">>> {}".format(sql))
-            try:
-                cur.execute(sql, data)
-                # db.con.commit()
-                id = cur.lastrowid
-                insertCount += 1
-            except sqlite3.Error as er:
-                if (er.args[0] == 'UNIQUE constraint failed: catalog.object'):
-                    print("Duplicate {} entry found at line {}; skipping".format(data[0], linenum))
-                    insertCount -= 1
-                else:
-                    print('ERROR: ' + ' '.join(er.args))
+            if (cmd == 'recreate'):
+                error = None
+                for table in [ 'catalog', 'catalog_by_target' ]:
+                    sql = "DROP TABLE {}".format(table)
+                    logging.debug(">>> {}".format(sql))
+                    try:
+                        cur.execute(sql)
+                        db.con.commit()
+                        print("Table {} dropped".format(table))
+                    except sqlite3.Error as er:
+                        print('ERROR: ' + ' '.join(er.args))
+                        if (er.args[0][0:14] == 'no such table:'):
+                            error = 1
+                if (error):
+                    print('You meant maybe `create` instead?')
                     sys.exit(1)
 
-            # Get all our possible names
-            targets = [ data[0] ]           # [0] is object
-            for alt in data[1].split(';'):  # [1] is `other` name(s) for object
-                targets.append(alt)
+            # Parse header into a list (and build our qmarks)
+            headerline = file.readline().rstrip().replace('"','').lower()
+            header = list()
+            qmarks = list()
+            for hdr in headerline.split(','):
+                header.append(cat.prettyspace(hdr).replace(' ','_'))  # boo!
+                qmarks.append('?')
+            logging.debug(">>> headerline: {}$".format(headerline))
+            logging.debug(">>> header: ({}) {}".format(len(header), header))
+            logging.debug(">>> qmarks: ({}) {}".format(len(qmarks), qmarks))
 
-            # Figure out canonical name
-            cname = data[0]                 # default to `object`
-            for target in targets:
-                if (cat.re_messier.match(target)):
-                    cname = target          # override with Messier
-                    break
+            # Build sql CREATE statement based on columns called out in headerfile
+            # Note that `object`, `other` and `type` have to exist or Bad Things will happen
+            cols = list()
+            cols.append('id INTEGER PRIMARY KEY AUTOINCREMENT')
+            for hdr in header:
+                cols.append('{} TEXT'.format(hdr))
+            sql = 'CREATE TABLE catalog ({}\n)'.format(',\n  '.join(cols))
+            logging.debug(">>> {}".format(sql))
 
-            # Add all our names to lookup table
-            for target in targets:
-                if (target):
-                    sql = "insert into catalog_by_target (target, id, cname) values (?,?,?)"
-                    logging.debug(">>> {} {}".format(sql, [ target, id, cname ]))
-                    cur.execute(sql, [ target, id, cname ])
-                    aliasCount += 1
+            # Intentionally fail if table exists
+            try:
+                cur.execute(sql)
+                cur.execute("CREATE UNIQUE INDEX catalog_object_index ON catalog (object)")
+                cur.execute("CREATE INDEX catalog_type_index ON catalog (type)")
+                cur.execute("CREATE TABLE catalog_by_target ( target TEXT, id INTEGER, cname TEXT )")
+                cur.execute("CREATE INDEX catalog_by_target_target_index ON catalog_by_target (target)")
+                cur.execute("CREATE INDEX catalog_by_target_id_index ON catalog_by_target (id)")
+                db.con.commit()
+            except sqlite3.Error as er:
+                print('ERROR: ' + ' '.join(er.args))
+                if (er.args[0] == 'table catalog already exists'):
+                    print("HINT: If you really want to recreate it, rerun using `recreate`")
+                sys.exit(1)
 
-        db.con.commit()
-        print("{} catalog entries added".format(insertCount))
-        print("{} target aliases added".format(aliasCount))
-        db.con.close()
-        sys.exit()
+            print("Tables catalog, catalog_by_target created")
+
+            # Insert data
+            linenum = 1  # We already processed header
+            insertCount = 0
+            aliasCount = 0
+            datalines = file.readlines()
+            for dataline in datalines:
+                linenum += 1
+
+                # Twiddle the data
+                logging.debug(">>> dataline: {}".format(dataline))
+                data = list()
+                for d in dataline.rstrip().split('","'):
+                    data.append(cat.prettyspace(d))
+                logging.debug(">>> data: {}".format(data))
+                if (len(data) != len(header)):
+                    print("Not enough fields at line {}; skipping (found {} expected {})".format(linenum, len(data), len(header)))
+                    continue
+
+                # Insert into catalog
+                sql = 'INSERT INTO catalog ({}) VALUES ({})'.format(','.join(header), ','.join(qmarks))
+                logging.debug(">>> {}".format(sql))
+                try:
+                    cur.execute(sql, data)
+                    # db.con.commit()
+                    id = cur.lastrowid
+                    insertCount += 1
+                except sqlite3.Error as er:
+                    if (er.args[0] == 'UNIQUE constraint failed: catalog.object'):
+                        print("Duplicate {} entry found at line {}; skipping".format(data[0], linenum))
+                        insertCount -= 1
+                    else:
+                        print('ERROR: ' + ' '.join(er.args))
+                        sys.exit(1)
+
+                # Get all our possible names
+                targets = [ data[0] ]           # [0] is object
+                for alt in data[1].split(';'):  # [1] is `other` name(s) for object
+                    targets.append(alt)
+
+                # Figure out canonical name
+                cname = data[0]                 # default to `object`
+                for target in targets:
+                    if (cat.re_messier.match(target)):
+                        cname = target          # override with Messier
+                        break
+
+                # Add all our names to lookup table
+                for target in targets:
+                    if (target):
+                        sql = "insert into catalog_by_target (target, id, cname) values (?,?,?)"
+                        logging.debug(">>> {} {}".format(sql, [ target, id, cname ]))
+                        cur.execute(sql, [ target, id, cname ])
+                        aliasCount += 1
+
+            db.con.commit()
+            print("{} catalog entries added".format(insertCount))
+            print("{} target aliases added".format(aliasCount))
+            db.con.close()
+            sys.exit()
 
     elif (cmd == 'stats'):
         cur = db.con.cursor()
         total_rows = cur.execute("select count(*) from catalog").fetchone()[0]
         total_aliases = cur.execute("select count(*) from catalog_by_target").fetchone()[0]
 
-        type = dict()
+        type_counts = dict()
         sql = 'select type, count(type) from catalog group by 1 order by 2 desc'
         for row in cur.execute(sql).fetchall():
-            type[row[0]] = row[1]
+            type_counts[row[0]] = row[1]
 
         con = dict()
         sql = 'select con, count(con) from catalog group by 1 order by 2 desc'
@@ -226,9 +226,9 @@ if (__name__ == "__main__"):
             con[row[0]] = row[1]
 
         print("The catalog contains {:,} objects with {:,} aliases".format(total_rows, total_aliases))
-        print("\nThere are {} types of objects:".format(len(type)))
+        print("\nThere are {} types of objects:".format(len(type_counts)))
         x = 0
-        for t,v in type.items():
+        for t,v in type_counts.items():
             x += 1
             print("{:-5d} {:10s}".format(v,t), end='')
             if (x >= 8):
@@ -249,7 +249,7 @@ if (__name__ == "__main__"):
         sys.exit(0)
 
     elif (cmd == 'query'):
-        print("Wuery not yet implemented.")
+        print("Query not yet implemented.")
         #  object TEXT,
         #  other TEXT,
         #  type TEXT,

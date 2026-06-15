@@ -25,7 +25,7 @@
                 <div class="homebuttons" id="homebuttons">
                     <!-- buttons line one -->
                     <span class="right">
-                        <span class="right"><a href='/' alt='Home'><image src="static/home.png" height="28" alt="[Home]"></a></span>
+                        <span class="right"><a href='/' alt='Home'><img src="static/home.png" height="28" alt="[Home]"></a></span>
                         <span class="right"><img src="static/1x1-transparent.png" width="8" height="1"></span>
                         <span class="right">
                             <form name="dlform" method="POST" onSubmit="return(setRecids());" action="/download">
@@ -34,7 +34,7 @@
                             </form>
                         </span>
                         <span class="right"><img src="static/1x1-transparent.png" width="8" height="1"></span>
-                        <span class="right"><image src="static/help.png" height="28" alt="[Help]" onClick="help()"></span>
+                        <span class="right"><img src="static/help.png" height="28" alt="[Help]" onClick="help()"></span>
                     </span>
 
                     <!-- buttons line two -->
@@ -101,19 +101,17 @@
                     </span>
 
                     <!-- Filter line 3: Possible messages -->
-                    {% if messages %}
+                    {% with messages = get_flashed_messages() %}
+                     {% if messages %}
                       <br/>
                       <span class="right"><img src="static/1x1-transparent.png" width="22" height="1"></span>
                       <span class="message">
-                      {% with messages = get_flashed_messages() %}
-                       {% if messages %}
-                        {% for message in messages %}
-                          <font color="brown">{{ message }}</font><br/>
-                        {% endfor %}
-                       {% endif %}
-                      {% endwith %}
+                       {% for message in messages %}
+                        <span style="color:brown">{{ message }}</span><br/>
+                       {% endfor %}
                       </span>
-                    {% endif %}
+                     {% endif %}
+                    {% endwith %}
 
                 </div>
             </div>

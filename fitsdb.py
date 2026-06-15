@@ -25,11 +25,6 @@ class Fitsdb:
     def __del__(self):
         self.con.close()
 
-    def execute_and_commit(self, sql):
-        cur = self.con.cursor()
-        cur.execute(sql)
-        self.con.commit()
-
     def insert(self, image):
         '''Insert image (dictionary) into the database.'''
         logging.debug(">>> fitsdb.insert(): imagetype: {}".format(image['imagetype']))
