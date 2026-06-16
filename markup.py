@@ -23,13 +23,13 @@ class Markup:
         version_fn = 'VERSION' if os.path.exists('VERSION') else '/home/nas/flask/imagelib/VERSION'
         with open(version_fn, 'r') as vfile:
             self.version = vfile.readline().strip()
-        print(">>> Markup version {}; connected to {}".format(self.version, self.db))
-        print(">>> Working directory: {}".format(os.getcwd()))
+        logging.info("Markup version {}; connected to {}".format(self.version, self.db))
+        logging.info("Working directory: {}".format(os.getcwd()))
 
     def reset(self):
         '''Reset lists each time we're called.'''
-        print('>>> markup.reset()')
-        self.where_list = list()  # Where clause
+        logging.debug("markup.reset()")
+        self.where_list = list()  # List of (clause, params) tuples
         self.what_list = list()   # Human description for page title
 
         # Collect some stats
@@ -39,11 +39,17 @@ class Markup:
         self.total_tgts = cur.execute("select count(*) from fits where imagetype = 'tgt'").fetchone()[0]
         self.distinct_tgts = cur.execute("select count(distinct(target)) from fits where imagetype = 'tgt'").fetchone()[0]
 
-    def add_where(self, w):
-        self.where_list.append(w)
+    def add_where(self, clause, params=None):
+        self.where_list.append((clause, params or []))
 
     def get_where(self):
-        return(' AND '.join(self.where_list))
+        return ' AND '.join(clause for clause, _ in self.where_list)
+
+    def get_params(self):
+        result = []
+        for _, params in self.where_list:
+            result.extend(params)
+        return result
 
     def add_what(self, w):
         self.what_list.append(w)
@@ -52,26 +58,28 @@ class Markup:
         return(' '.join(self.what_list))
 
     def buildWhere_imgfilter(self, imgfilter):
-        '''Upeate where clause to restrict by imgfilter if either cal or tgt selected. (Both doesn't require a where clause.)'''
+        '''Update where clause to restrict by imgfilter if either cal or tgt selected. (Both doesn't require a where clause.)'''
         if (imgfilter == 'cal'):
-            self.add_where('imagetype = "cal"')
+            self.add_where('imagetype = ?', ['cal'])
             self.add_what('Calibration:')
         elif (imgfilter == 'tgt'):
-            self.add_where('imagetype = "tgt"')
+            self.add_where('imagetype = ?', ['tgt'])
             self.add_what('Target:')
 
     def buildWhere_target(self, target):
-        '''Update where cluse to match target if exact match, else do a fuzzy lookup.'''
+        '''Update where clause to match target if exact match, else do a fuzzy lookup.'''
         if (target):
             cur = self.db.con.cursor()
             sql = "select count(*) from fits where target = ?"
+            params = [target]
             if (self.where_list):
                 sql += " and {}".format(self.get_where())
-            if (cur.execute(sql, [ target ]).fetchone()[0] > 0):
-                self.add_where('target = "{}"'.format(target))  # Query above untaints target
+                params += self.get_params()
+            if (cur.execute(sql, params).fetchone()[0] > 0):
+                self.add_where('target = ?', [target])
                 self.add_what(target)
             else:
-                self.add_where('target like "%{}%"'.format(target))
+                self.add_where('target like ?', ['%' + target + '%'])
                 self.add_what('matching <{}>'.format(target))
 
         if (not self.what_list):
@@ -80,53 +88,60 @@ class Markup:
     def fetchTargets(self, target=None):
         '''Return list of distinct targets that match, handling empty target and fuzzy matches.'''
         sql = "SELECT DISTINCT(target) FROM fits"
+        params = []
         if (self.where_list):
             sql += " WHERE {}".format(self.get_where())
+            params = self.get_params()
         sql += ' ORDER BY target'
 
         logging.debug(">>> {}".format(sql))
         cur = self.db.con.cursor()
-        cur.execute(sql)
+        cur.execute(sql, params)
         targets = list()
         for row in cur.fetchall():
             targets.append(row[0])
-        print(">>> fetchTargets({}) ==> {} rows".format(target, len(targets)))
+        logging.debug("fetchTargets({}) ==> {} rows".format(target, len(targets)))
         return(targets)
 
     def fetchDates(self, target=None):
         '''Return list of distinct dates for this target, handling empty target and fuzzy matches.'''
         sql = "SELECT DISTINCT(date) FROM fits"
+        params = []
         if (self.where_list):
             sql += " WHERE {}".format(self.get_where())
+            params = self.get_params()
         sql += " ORDER BY date DESC"
 
         logging.debug(">>> {}".format(sql))
         cur = self.db.con.cursor()
-        cur.execute(sql)
+        cur.execute(sql, params)
         dates = list()
         for row in cur.fetchall():
             dates.append(row[0])
-        print(">>> fetchDates({}) ==> {} rows".format(target, len(dates)))
+        logging.debug("fetchDates({}) ==> {} rows".format(target, len(dates)))
         return(dates)
 
     def fetchDetails(self, target=None, date=None):
         '''Return list of details (tuple) that match target and date.'''
         cur = self.db.con.cursor()
         sql = "SELECT id, target, thumbnail, preview FROM fits"
+        params = []
         if (self.where_list):
             sql += " WHERE {}".format(self.get_where())
             sql += " AND date = ?"
+            params = self.get_params() + [date]
         else:
             sql += " WHERE date = ?"
+            params = [date]
         sql += " ORDER BY id"
 
-        logging.debug(">>> {} with ({})".format(sql,date))
+        logging.debug(">>> {} with ({})".format(sql, date))
         cur = self.db.con.cursor()
-        cur.execute(sql, [date])
+        cur.execute(sql, params)
         details = list()
         for row in cur.fetchall():
             details.append(row)
-        print(">>> fetchDetails(t:{}, d:{}) ==> {} rows".format(target, date, len(details)))
+        logging.debug("fetchDetails(t:{}, d:{}) ==> {} rows".format(target, date, len(details)))
         return(details)
 
     def findStartDate(self, dates, start):
@@ -138,9 +153,9 @@ class Markup:
                     break
                 startX += 1
         if (startX >= len(dates)):
-            print(">>> start date {} not found".format(start))
+            logging.warning("start date {} not found".format(start))
             startX = 0
-        print(">>> findStartDate({}) ==> {}".format([len(dates), start], startX))
+        logging.debug("findStartDate({}) ==> {}".format([len(dates), start], startX))
         return(startX)
 
     def noneify(self, var):
@@ -154,7 +169,7 @@ class Markup:
     # Main UI entrypoint
     def build_images(self, start=None, target=None, imgfilter='both', lastTarget=None):
         '''Build a template (dictionary) of which images to display.'''
-        print(">>> build_images(start={}, target={}, imgfilter={}, lastTarget={})".format(start,target,imgfilter,lastTarget))
+        logging.debug("build_images(start={}, target={}, imgfilter={}, lastTarget={})".format(start,target,imgfilter,lastTarget))
         self.reset()
 
         images = dict()
@@ -176,7 +191,7 @@ class Markup:
         targets = self.fetchTargets(target)
         if (len(targets) == 0):
             # Flash an error and refetch lastTarget
-            print(">>> target not found")
+            logging.warning("target not found")
             flask.flash("Target '{}' not found".format(target))
             target = lastTarget
             targets = self.fetchTargets(target)
@@ -186,7 +201,7 @@ class Markup:
 
         # Reset date if new target chosen
         if (self.noneify(lastTarget) != self.noneify(target)):
-            print(">>> lastTarget:{} != target:{} ==> start:None".format(lastTarget, target))
+            logging.debug("lastTarget:{} != target:{} ==> start:None".format(lastTarget, target))
             images['start'] = ''
             start = None
 
@@ -198,8 +213,8 @@ class Markup:
             images['prev'] = dates[startX - 1]
         images['obsDates'] = dates
 
-        print(">>> dates: ({} of 'em)".format(len(dates)))
-        print(">>> start: {}".format(start))
+        logging.debug("dates: ({} of 'em)".format(len(dates)))
+        logging.debug("start: {}".format(start))
         images['title'] = "RFO Image Library: {}".format(self.get_what())  # set in searchType() as a side effect of any fetchXxx() call
 
         thumb_count = 0
@@ -235,21 +250,20 @@ class Markup:
                 pic['recid'] = recid
                 pic['title'] = thisTarget
                 pic['src'] = thumbnail
-                pic['preview'] = preview  # Not used cuz I couln't figure out how to sneak it in
                 collection['pics'].append(pic)
 
             images['collections'].append(collection)
 
         for thang in [ 'target', 'date', 'start', 'prev', 'next' ]:
             if (thang in images):
-                print(">>> images[{}]: {}".format(thang, images[thang]))
+                logging.debug("images[{}]: {}".format(thang, images[thang]))
 
         # print(json.dumps(images, indent=4))
         return(images)
 
     def zipit(self, recidstr):
         '''Query the database for specified record IDs, zip up the fits files and return zip file path.'''
-        print(">>> zipit({})".format(recidstr))
+        logging.debug("zipit({})".format(recidstr))
         recids = recidstr.split(',')
         qmarks = list()
         for x in recids:
@@ -258,9 +272,9 @@ class Markup:
 
         cur = self.db.con.cursor()
         sql = "select id, path from fits where id in ({}) order by id".format(questionmarks)
-        print(">>> {} [{}]".format(sql,recids))
+        logging.debug("{} [{}]".format(sql, recids))
         rows = cur.execute(sql, recids)
-        print(">>> returned {} rows".format(rows.rowcount))
+        logging.debug("returned {} rows".format(rows.rowcount))
 
         # Experiments show that at compressionlevel=1, the zip file is 3% larger than at =9, but 9 takes 5 times as long
         self.sequence += 1
@@ -270,11 +284,10 @@ class Markup:
             os.remove(tempfn)
         with zipfile.ZipFile(tempfn, mode='x', compression=zipfile.ZIP_DEFLATED, compresslevel=1) as zip:
             for row in rows:
-                print(">>> adding {}".format(row))
+                logging.debug("adding {}".format(row))
                 id, path = row
                 zip.write(path, arcname=os.path.basename(path))
-        zip.close()
-        print(">>> return({})".format(tempfn))
+        logging.debug("return({})".format(tempfn))
         return(tempfn)
 
     def fetchDeets(self, recid):
