@@ -26,12 +26,13 @@ dictConfig({
 import flask
 app = flask.Flask(__name__)
 
-_secret_key = os.environ.get('IMAGELIB_SECRET_KEY')
-if not _secret_key:
-    _key_file = os.path.join(prodhome, '.secret_key') if os.path.exists(prodhome) else '.secret_key'
-    if os.path.exists(_key_file):
-        with open(_key_file) as _f:
-            _secret_key = _f.read().strip()
+_key_file = os.path.join(prodhome, '.secret_key') if os.path.exists(prodhome) else '.secret_key'
+_secret_key = None
+if os.path.exists(_key_file):
+    with open(_key_file) as _f:
+        _secret_key = _f.read().strip()
+if os.environ.get('IMAGELIB_SECRET_KEY'):
+    _secret_key = os.environ['IMAGELIB_SECRET_KEY']
 if not _secret_key:
     raise RuntimeError('Set IMAGELIB_SECRET_KEY env var or create .secret_key file')
 app.secret_key = _secret_key
