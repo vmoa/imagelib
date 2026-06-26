@@ -143,3 +143,25 @@ def test_fits2png_skips_existing_preview(ff, fits_path):
         ff.fits2png({'path': fits_path, 'x': 200, 'y': 100})
 
     mock_run.assert_not_called()
+
+
+def test_fits2png_fitsz_preview_and_thumb_created(ff, fitsz_path):
+    """.fits.fz: preview and thumb paths must strip the full 8-char extension."""
+    expected_preview = fitsz_path[:-8] + '.png'
+    expected_thumb   = fitsz_path[:-8] + '-thumb.png'
+
+    with patch('subprocess.run', side_effect=_fake_fitspng):
+        record = ff.fits2png({'path': fitsz_path, 'x': 200, 'y': 100})
+
+    assert os.path.exists(expected_preview)
+    assert os.path.exists(expected_thumb)
+    assert record['preview'] == expected_preview
+    assert record['thumbnail'] == expected_thumb
+
+
+def test_fits2png_fitsz_original_file_restored(ff, fitsz_path):
+    """.fits.fz: the temp-rename workaround must restore the original filename."""
+    with patch('subprocess.run', side_effect=_fake_fitspng):
+        ff.fits2png({'path': fitsz_path, 'x': 200, 'y': 100})
+
+    assert os.path.exists(fitsz_path)

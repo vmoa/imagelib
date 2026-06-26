@@ -125,12 +125,21 @@ class FitsFiles:
             return record
 
         # Define the intended final absolute paths
-        preview_final_abs = fits_path_abs[:-5] + '.png'
-        thumb_final_abs = fits_path_abs[:-5] + '-thumb.png'
+        if fits_path_abs.endswith('.fits.fz'):
+            stem = fits_path_abs[:-8]
+            temp_ext = '.fits.fz'
+        elif fits_path_abs.endswith('.fits'):
+            stem = fits_path_abs[:-5]
+            temp_ext = '.fits'
+        else:  # .fit
+            stem = fits_path_abs[:-4]
+            temp_ext = '.fit'
+        preview_final_abs = stem + '.png'
+        thumb_final_abs = stem + '-thumb.png'
 
         # --- WORKAROUND: Rename the file temporarily to a simple name ---
         # Create a safe, temporary filename within the same directory
-        temp_safe_fits_path = os.path.join(fits_dir, "temp_safe_image.fits")
+        temp_safe_fits_path = os.path.join(fits_dir, "temp_safe_image" + temp_ext)
         temp_safe_preview = None
         temp_safe_thumb = None
 
