@@ -10,7 +10,10 @@ import sqlite3
 
 class Fitsdb:
 
-    if (os.path.exists('/home/nas/data')):
+    if os.environ.get('FITSDB_FILE'):
+        dbfile = os.environ['FITSDB_FILE']
+        tsfile = os.environ.get('FITSDB_TSFILE', os.environ['FITSDB_FILE'] + '.last_run')
+    elif os.path.exists('/home/nas/data'):
         dbfile = '/home/nas/data/fits.db'
         tsfile = '/home/nas/data/fits.last_run'
     else:

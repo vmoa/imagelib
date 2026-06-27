@@ -1,4 +1,5 @@
 """Unit tests for catalog.py"""
+import os
 import pytest
 import catalog
 
@@ -80,15 +81,12 @@ def test_cname_lazy_db_init(fresh_catalog_db, monkeypatch):
     assert catalog.Catalog.db is not None
 
 
-def test_malformed_catalog_line_skipped(tmp_path, monkeypatch):
+def test_malformed_catalog_line_skipped(tmp_path):
     """The next→continue fix: a line with too few fields is skipped, not inserted."""
-    import fitsdb
     import subprocess
     import sys
 
     db_path = str(tmp_path / 'cat.db')
-    monkeypatch.setattr(fitsdb.Fitsdb, 'dbfile', db_path)
-    db = fitsdb.Fitsdb()
 
     # Build a minimal catalog file: 5-column header, one good line, one short line
     cat_file = tmp_path / 'test.cat'
@@ -102,6 +100,7 @@ def test_malformed_catalog_line_skipped(tmp_path, monkeypatch):
     result = subprocess.run(
         [sys.executable, 'catalog.py', 'create', str(cat_file)],
         capture_output=True, text=True,
+        env={**os.environ, 'FITSDB_FILE': db_path},
     )
     # Process must succeed (exit 0)
     assert result.returncode == 0
