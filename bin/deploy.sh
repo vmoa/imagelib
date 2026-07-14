@@ -19,6 +19,15 @@ usage() {
     echo "  - pulls the latest code from git"
     echo "  - checks for and optionally runs pending DB migrations"
     echo "  - reloads the Flask app via mod_wsgi"
+    echo ""
+    echo "Rollback (code only):"
+    echo "  rsync -a --delete /tmp/imagelib-<timestamp>/ $REPO/"
+    echo "  touch $REPO/imagelib.wsgi"
+    echo ""
+    echo "Rollback (if a DB migration was also run):"
+    echo "  cp $DB.<timestamp>.bak $DB"
+    echo "  rsync -a --delete /tmp/imagelib-<timestamp>/ $REPO/"
+    echo "  touch $REPO/imagelib.wsgi"
     exit 1
 }
 
