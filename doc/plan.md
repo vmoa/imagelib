@@ -229,3 +229,59 @@ cd /home/nas/flask/imagelib
 python3 fitsdb.py create
 # Install fitspng, configure Apache WSGI (see etc/100-imagelib.conf)
 ```
+
+---
+
+## Asterism SCP Key Installation
+
+This is a one-time setup step performed on the AWS server to authorize Asterism to drop files via SCP. Asterism authenticates using an SSH key pair; BJ at Asterism holds the private key and provides the public key.
+
+### Key choices
+
+- Use the **Ed25519 public key** provided by BJ — it is more modern and secure than RSA.
+- No password is set on the `asterism` account. Authentication is entirely via the key pair.
+- The `command=` restriction in `authorized_keys` locks the account so the key can only be used to SCP files into the drop directory — no shell, no port forwarding, no reading files back.
+
+### What to send BJ
+
+Once the key is installed, give BJ:
+
+- **Host**: `imagelib.rfo.org`
+- **Username**: `asterism`
+- **Destination path**: `/home/nas/Eagle/Asterism/rfo/`
+- **Private key**: BJ already has it (it is the other half of the public key he sent)
+
+BJ's SSH client will be prompted to accept `imagelib.rfo.org`'s host key on first connection — that is normal and expected.
+
+### Installation steps
+
+The `asterism` account was created with `--no-create-home`, so the `.ssh` directory must be created manually:
+
+```bash
+# 1. Create the home and .ssh directories
+sudo mkdir -p /home/asterism/.ssh
+sudo chown -R asterism: /home/asterism
+sudo chmod 700 /home/asterism
+sudo chmod 700 /home/asterism/.ssh
+
+# 2. Point the user's passwd entry at the new home directory
+sudo usermod --home /home/asterism asterism
+
+# 3. Install the Ed25519 public key with SCP-only restriction
+sudo tee /home/asterism/.ssh/authorized_keys <<'EOF'
+command="scp -t /home/nas/Eagle/Asterism/rfo",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKZKo+HxsGfAG58XOAbUeW8Nlhnibwaem6kBpQXRguef
+EOF
+
+# 4. Lock down permissions (sshd rejects world-readable authorized_keys)
+sudo chown asterism: /home/asterism/.ssh/authorized_keys
+sudo chmod 600 /home/asterism/.ssh/authorized_keys
+
+# 5. Verify
+sudo cat /home/asterism/.ssh/authorized_keys
+```
+
+Step 5 should show a single line beginning with `command="scp -t ...` followed by the key.
+
+### End-to-end verification
+
+Ask BJ to SCP a test `.fits.fz` file to `asterism@imagelib.rfo.org:/home/nas/Eagle/Asterism/rfo/` and confirm it appears in that directory. Then wait for the next hourly cron run (or trigger `python3 fitsfiles.py` manually) and check `/tmp/fitsfiles.out` to confirm the file was ingested.
