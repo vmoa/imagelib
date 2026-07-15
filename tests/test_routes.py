@@ -4,7 +4,7 @@ import zipfile
 
 import pytest
 
-from tests.conftest import _create_fits_schema, _fitsdb, make_fits_file
+from tests.conftest import _create_fits_schema, _fitsdb, make_fits_file, make_fitsz_file
 
 
 # ---------------------------------------------------------------------------
@@ -98,9 +98,44 @@ def test_download_zip_contains_fits_file(client, seeded):
         assert 'M51_300s.fits' in zf.namelist()
 
 
-@pytest.mark.skip(reason="Phase 3c: format choice (.fits.fz / .fits) not yet implemented")
-def test_download_format_choice():
-    pass
+@pytest.fixture(scope='session')
+def seeded_fitsz(tmp_path_factory, _session_db):
+    """Create a real .fits.fz file and a matching DB record."""
+    fits_dir = tmp_path_factory.mktemp('fitsz')
+    fitsz_file = str(fits_dir / 'M51_300s.fits.fz')
+    make_fitsz_file(fitsz_file, object_name='M 51')
+
+    _session_db.insert(dict(
+        target='M 51', object='NGC 5194', date='2024-06-01',
+        timestamp='2024-06-01T04:30:00.000', filter='Clear',
+        binning='2x2', exposure=300.0, x=200, y=100,
+        path=fitsz_file,
+        preview=fitsz_file[:-8] + '.png',
+        thumbnail=fitsz_file[:-8] + '-thumb.png',
+        imagetype='tgt',
+    ))
+    cur = _session_db.con.cursor()
+    recid = cur.execute(
+        "SELECT id FROM fits WHERE path = ?", [fitsz_file]
+    ).fetchone()[0]
+    return {'fitsz_file': fitsz_file, 'recid': recid}
+
+
+def test_download_format_choice(client, seeded_fitsz):
+    import io
+    recid = str(seeded_fitsz['recid'])
+
+    r = client.post('/download', data={'recids': recid, 'fmt': 'fz'})
+    assert r.status_code == 200
+    with zipfile.ZipFile(io.BytesIO(r.data)) as zf:
+        assert 'M51_300s.fits.fz' in zf.namelist()
+
+    r = client.post('/download', data={'recids': recid, 'fmt': 'fits'})
+    assert r.status_code == 200
+    with zipfile.ZipFile(io.BytesIO(r.data)) as zf:
+        names = zf.namelist()
+        assert 'M51_300s.fits.fz' not in names
+        assert 'M51_300s.fits' in names
 
 
 # ---------------------------------------------------------------------------

@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pytest
 
 import markup as markup_module
-from tests.conftest import make_fits_file
+from tests.conftest import make_fits_file, make_fitsz_file
 
 
 @pytest.fixture
@@ -148,3 +148,84 @@ def test_zipit_filename_is_basename(fresh_db, tmp_path):
 
     with zipfile.ZipFile(zip_path) as zf:
         assert 'image.fits' in zf.namelist()
+
+
+def test_zipit_fitsz_served_as_fz(fresh_db, tmp_path):
+    """fmt='fz' passes .fits.fz through to the ZIP unchanged."""
+    fitsz_file = str(tmp_path / 'image.fits.fz')
+    make_fitsz_file(fitsz_file)
+
+    fresh_db.insert(dict(
+        target='M 51', object='NGC 5194', date='2024-06-01',
+        timestamp='2024-06-01T04:30:00', filter='Clear', binning='2x2',
+        exposure=300.0, x=200, y=100,
+        path=fitsz_file, preview='/t/p.png', thumbnail='/t/t.png',
+        imagetype='tgt',
+    ))
+    cur = fresh_db.con.cursor()
+    recid = cur.execute("SELECT id FROM fits WHERE path = ?", [fitsz_file]).fetchone()[0]
+
+    m = markup_module.Markup()
+    zip_path = m.zipit(str(recid), fmt='fz')
+
+    with zipfile.ZipFile(zip_path) as zf:
+        assert 'image.fits.fz' in zf.namelist()
+
+
+# ---------------------------------------------------------------------------
+# buildWhere_orgproject / buildWhere_observatory / buildWhere_observer (3e)
+# ---------------------------------------------------------------------------
+
+def test_buildwhere_orgproject_valid(m):
+    m.buildWhere_orgproject('AstOrg|Deep Sky Survey')
+    assert 'organization = ?' in m.get_where()
+    assert 'project = ?' in m.get_where()
+    assert 'AstOrg' in m.get_params()
+    assert 'Deep Sky Survey' in m.get_params()
+
+
+def test_buildwhere_orgproject_empty_ignored(m):
+    m.buildWhere_orgproject('')
+    assert m.get_where() == ''
+    assert m.get_params() == []
+
+
+def test_buildwhere_observatory(m):
+    m.buildWhere_observatory('RFO-RC20')
+    assert 'observatory = ?' in m.get_where()
+    assert 'RFO-RC20' in m.get_params()
+
+
+def test_buildwhere_observer(m):
+    m.buildWhere_observer('J. Smith')
+    assert 'observer = ?' in m.get_where()
+    assert 'J. Smith' in m.get_params()
+
+
+def test_zipit_fitsz_decompressed_to_fits(fresh_db, tmp_path):
+    """fmt='fits' decompresses .fits.fz in memory and writes .fits into the ZIP."""
+    import io
+    from astropy.io import fits as astrofits
+
+    fitsz_file = str(tmp_path / 'image.fits.fz')
+    make_fitsz_file(fitsz_file)
+
+    fresh_db.insert(dict(
+        target='M 51', object='NGC 5194', date='2024-06-01',
+        timestamp='2024-06-01T04:30:00', filter='Clear', binning='2x2',
+        exposure=300.0, x=200, y=100,
+        path=fitsz_file, preview='/t/p.png', thumbnail='/t/t.png',
+        imagetype='tgt',
+    ))
+    cur = fresh_db.con.cursor()
+    recid = cur.execute("SELECT id FROM fits WHERE path = ?", [fitsz_file]).fetchone()[0]
+
+    m = markup_module.Markup()
+    zip_path = m.zipit(str(recid), fmt='fits')
+
+    with zipfile.ZipFile(zip_path) as zf:
+        names = zf.namelist()
+        assert 'image.fits.fz' not in names
+        assert 'image.fits' in names
+        with astrofits.open(io.BytesIO(zf.read('image.fits'))) as hdul:
+            assert len(hdul) > 0

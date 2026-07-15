@@ -96,7 +96,11 @@ if (__name__ == "__main__"):
                     path TEXT,
                     preview TEXT,
                     thumbnail TEXT,
-                    imagetype TEXT
+                    imagetype TEXT,
+                    organization TEXT,
+                    project TEXT,
+                    observatory TEXT,
+                    observer TEXT
                 )
             ''')
         except sqlite3.Error as er:
@@ -194,6 +198,27 @@ if (__name__ == "__main__"):
         db.con.close()
         sys.exit()
 
+
+    Commands.append('update:orgproject')
+    if (command == 'update:orgproject'):
+        cur = db.con.cursor()
+
+        print("Adding organization, project, observatory, observer columns; have you backed up fits.db? ", end='')
+        if (input()[0].lower() != 'y'):
+            exit(1)
+
+        for col in ['organization', 'project', 'observatory', 'observer']:
+            sql = 'ALTER TABLE fits ADD COLUMN {} TEXT'.format(col)
+            print(">>> {}".format(sql))
+            try:
+                cur.execute(sql)
+            except sqlite3.Error as er:
+                print('ERROR: ' + ' '.join(er.args))
+                sys.exit(1)
+
+        db.con.commit()
+        db.con.close()
+        sys.exit()
 
     if (command):
         print("Unknown command: {}".format(command))

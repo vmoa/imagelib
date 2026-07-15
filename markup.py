@@ -3,6 +3,7 @@
 #
 
 import flask
+import io
 import logging
 import json
 import os
@@ -10,6 +11,8 @@ import re
 import sys
 import time
 import zipfile
+
+from astropy.io import fits as astrofits
 
 import fitsdb
 
@@ -121,10 +124,49 @@ class Markup:
         logging.debug("fetchDates({}) ==> {} rows".format(target, len(dates)))
         return(dates)
 
+    def fetchOrgProjects(self):
+        '''Return list of distinct (organization, project) pairs where organization is set.'''
+        cur = self.db.con.cursor()
+        sql = "SELECT DISTINCT organization, project FROM fits WHERE organization IS NOT NULL ORDER BY organization, project"
+        return cur.execute(sql).fetchall()
+
+    def fetchObservatories(self):
+        '''Return list of distinct observatory values.'''
+        cur = self.db.con.cursor()
+        sql = "SELECT DISTINCT observatory FROM fits WHERE observatory IS NOT NULL ORDER BY observatory"
+        return [row[0] for row in cur.execute(sql).fetchall()]
+
+    def fetchObservers(self):
+        '''Return list of distinct observer values.'''
+        cur = self.db.con.cursor()
+        sql = "SELECT DISTINCT observer FROM fits WHERE observer IS NOT NULL ORDER BY observer"
+        return [row[0] for row in cur.execute(sql).fetchall()]
+
+    def buildWhere_orgproject(self, orgproject):
+        '''Update where clause to filter by org|project combined value.'''
+        if orgproject:
+            parts = orgproject.split('|', 1)
+            if len(parts) == 2:
+                org, project = parts
+                self.add_where('organization = ? AND project = ?', [org, project])
+                self.add_what('{}|{}'.format(org, project))
+
+    def buildWhere_observatory(self, observatory):
+        '''Update where clause to filter by observatory.'''
+        if observatory:
+            self.add_where('observatory = ?', [observatory])
+            self.add_what('observatory:{}'.format(observatory))
+
+    def buildWhere_observer(self, observer):
+        '''Update where clause to filter by observer.'''
+        if observer:
+            self.add_where('observer = ?', [observer])
+            self.add_what('observer:{}'.format(observer))
+
     def fetchDetails(self, target=None, date=None):
         '''Return list of details (tuple) that match target and date.'''
         cur = self.db.con.cursor()
-        sql = "SELECT id, target, thumbnail, preview FROM fits"
+        sql = "SELECT id, target, thumbnail, preview, path FROM fits"
         params = []
         if (self.where_list):
             sql += " WHERE {}".format(self.get_where())
@@ -167,7 +209,8 @@ class Markup:
 
 
     # Main UI entrypoint
-    def build_images(self, start=None, target=None, imgfilter='both', lastTarget=None):
+    def build_images(self, start=None, target=None, imgfilter='both', lastTarget=None,
+                     orgproject=None, observatory=None, observer=None):
         '''Build a template (dictionary) of which images to display.'''
         logging.debug("build_images(start={}, target={}, imgfilter={}, lastTarget={})".format(start,target,imgfilter,lastTarget))
         self.reset()
@@ -186,6 +229,13 @@ class Markup:
         images['imgfilter_checked'] = dict()
         for filter in [ 'cal', 'tgt', 'both' ]:
             images['imgfilter_checked'][filter] = 'checked' if filter == imgfilter else ''
+
+        if orgproject:
+            self.buildWhere_orgproject(orgproject)
+        if observatory:
+            self.buildWhere_observatory(observatory)
+        if observer:
+            self.buildWhere_observer(observer)
 
         self.buildWhere_target(target)
         targets = self.fetchTargets(target)
@@ -218,6 +268,7 @@ class Markup:
         images['title'] = "RFO Image Library: {}".format(self.get_what())  # set in searchType() as a side effect of any fetchXxx() call
 
         thumb_count = 0
+        has_compressed = False
         images['collections'] = list()
         for date in dates[startX:]:
 
@@ -242,7 +293,9 @@ class Markup:
             for row in rows:
                 thumb_count += 1
                 sequence += 1
-                recid, thisTarget, thumbnail, preview = row
+                recid, thisTarget, thumbnail, preview, path = row
+                if path and path.endswith('.fits.fz'):
+                    has_compressed = True
                 if (thumbnail[0:15] == '/home/nas/Eagle'):
                     thumbnail = thumbnail[10:]
                 pic = dict()
@@ -254,6 +307,14 @@ class Markup:
 
             images['collections'].append(collection)
 
+        images['has_compressed'] = has_compressed
+        images['orgProjects'] = self.fetchOrgProjects()
+        images['observatories'] = self.fetchObservatories()
+        images['observers'] = self.fetchObservers()
+        images['orgproject'] = orgproject or ''
+        images['observatory'] = observatory or ''
+        images['observer'] = observer or ''
+
         for thang in [ 'target', 'date', 'start', 'prev', 'next' ]:
             if (thang in images):
                 logging.debug("images[{}]: {}".format(thang, images[thang]))
@@ -261,9 +322,9 @@ class Markup:
         # print(json.dumps(images, indent=4))
         return(images)
 
-    def zipit(self, recidstr):
+    def zipit(self, recidstr, fmt='fz'):
         '''Query the database for specified record IDs, zip up the fits files and return zip file path.'''
-        logging.debug("zipit({})".format(recidstr))
+        logging.debug("zipit({}, fmt={})".format(recidstr, fmt))
         recids = recidstr.split(',')
         qmarks = list()
         for x in recids:
@@ -286,7 +347,15 @@ class Markup:
             for row in rows:
                 logging.debug("adding {}".format(row))
                 id, path = row
-                zip.write(path, arcname=os.path.basename(path))
+                if fmt == 'fits' and path.endswith('.fits.fz'):
+                    with astrofits.open(path) as hdul:
+                        buf = io.BytesIO()
+                        hdul.writeto(buf)
+                        buf.seek(0)
+                        arcname = os.path.basename(path)[:-3]  # strip '.fz' → .fits
+                        zip.writestr(arcname, buf.read())
+                else:
+                    zip.write(path, arcname=os.path.basename(path))
         logging.debug("return({})".format(tempfn))
         return(tempfn)
 

@@ -50,7 +50,8 @@ def _create_fits_schema(db):
             target TEXT, object TEXT, date TEXT, timestamp TEXT,
             filter TEXT, binning TEXT, exposure REAL,
             x INTEGER, y INTEGER,
-            path TEXT, preview TEXT, thumbnail TEXT, imagetype TEXT
+            path TEXT, preview TEXT, thumbnail TEXT, imagetype TEXT,
+            organization TEXT, project TEXT, observatory TEXT, observer TEXT
         )
     ''')
     cur.execute(

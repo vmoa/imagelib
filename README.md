@@ -81,6 +81,38 @@ python3 ./__init__.py
 sudo apachectl reload
 ```
 
+## Deploying to Production
+
+The production server is an AWS EC2 instance. Code lives at
+`/home/nas/flask/imagelib/` as a git clone of this repo. Apache serves the
+Flask app via mod_wsgi; touching `imagelib.wsgi` reloads the app without an
+Apache restart.
+
+Use `bin/deploy.sh` for all production deploys. It must run as the `nas` user:
+
+```
+sudo -u nas /home/nas/flask/imagelib/bin/deploy.sh
+```
+
+The script backs up the code directory to `/tmp`, pulls the latest from git,
+checks for pending schema migrations (offering to run them with a DB backup),
+and reloads the app. Run it with no arguments to see full usage including
+rollback instructions.
+
+**To roll back** after a failed deploy, use the timestamped backup created by
+the script:
+
+```
+# Code only:
+rsync -a --delete /tmp/imagelib-<timestamp>/ /home/nas/flask/imagelib/
+touch /home/nas/flask/imagelib/imagelib.wsgi
+
+# If a DB migration was also run, restore its backup first:
+cp /home/nas/data/fits.db.<timestamp>.bak /home/nas/data/fits.db
+```
+
+The timestamp is printed by the deploy script at the start of its run.
+
 ## Debugging
 
 * Run by hand

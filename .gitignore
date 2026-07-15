@@ -54,6 +54,10 @@ Poop-Valve/*-bak
 *.sql
 *.sqlite
 
+# Microsoft Office temp files #
+################################
+~$*
+
 # OS generated files #
 ######################
 .DS_Store

@@ -30,6 +30,10 @@
                         <span class="right">
                             <form name="dlform" method="POST" onSubmit="return(setRecids());" action="/download">
                             <input type="hidden" name="recids">
+                            {% if has_compressed %}
+                            <label style="font-size:small"><input type="radio" name="fmt" value="fz" checked>.fits.fz</label>
+                            <label style="font-size:small"><input type="radio" name="fmt" value="fits">.fits</label>
+                            {% endif %}
                             <input type="image" border="0" src="static/download.png" height="28" alt="[Download]">
                             </form>
                         </span>
@@ -100,7 +104,47 @@
                         </form>
                     </span>
 
-                    <!-- Filter line 3: Possible messages -->
+                    <!-- Filter line 3: Organization/Project, Observatory, Observer -->
+                    {% if orgProjects or observatories or observers %}
+                    <br/>
+                    <span class="right">
+                        <form id="metadata" method="post" action="/">
+                        <input type="hidden" name="start" value="{{ date }}">
+                        <input type="hidden" name="target" value="{{ target }}">
+                        <input type="hidden" name="last_target" value="{{ target }}">
+                        <input type="hidden" name="imgfilter" value="{{ imgfilter }}">
+                        <span class="right"><input type="image" border="0" src="static/search.png" height="28" alt="[Filter]"></span>
+                        <span style="float:right; padding-top:4px; padding-right:8px;">
+                            {% if orgProjects %}
+                            Org/Project:&nbsp;<select name="orgproject">
+                                <option value="">All</option>
+                                {% for org, proj in orgProjects %}
+                                <option value="{{ org }}|{{ proj }}" {% if orgproject == org + '|' + proj %}selected{% endif %}>{{ org }}|{{ proj }}</option>
+                                {% endfor %}
+                            </select>&nbsp;
+                            {% endif %}
+                            {% if observatories %}
+                            Observatory:&nbsp;<select name="observatory">
+                                <option value="">All</option>
+                                {% for obs in observatories %}
+                                <option value="{{ obs }}" {% if observatory == obs %}selected{% endif %}>{{ obs }}</option>
+                                {% endfor %}
+                            </select>&nbsp;
+                            {% endif %}
+                            {% if observers %}
+                            Observer:&nbsp;<select name="observer">
+                                <option value="">All</option>
+                                {% for obsr in observers %}
+                                <option value="{{ obsr }}" {% if observer == obsr %}selected{% endif %}>{{ obsr }}</option>
+                                {% endfor %}
+                            </select>
+                            {% endif %}
+                        </span>
+                        </form>
+                    </span>
+                    {% endif %}
+
+                    <!-- Filter line 4: Possible messages -->
                     {% with messages = get_flashed_messages() %}
                      {% if messages %}
                       <br/>
