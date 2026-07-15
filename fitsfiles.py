@@ -197,6 +197,11 @@ class FitsFiles:
             print("Skipping {}: File not found!".format(filename))
             return(0)
 
+        basename = os.path.basename(filename)
+        if basename.startswith('MN') and not basename.startswith('MNc'):
+            logging.info("Skipping uncalibrated RFO image: {}".format(filename))
+            return(0)
+
         logging.info("Importing {}".format(filename))
         headers = self.parseFitsHeader(filename)
         if (not headers):

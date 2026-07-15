@@ -1,6 +1,6 @@
 """Unit tests for fitsfiles.py"""
 import os
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 import pytest
 
@@ -165,3 +165,34 @@ def test_fits2png_fitsz_original_file_restored(ff, fitsz_path):
         ff.fits2png({'path': fitsz_path, 'x': 200, 'y': 100})
 
     assert os.path.exists(fitsz_path)
+
+
+# ---------------------------------------------------------------------------
+# addFitsFile — MN/MNc calibration filter (3d)
+# ---------------------------------------------------------------------------
+
+def test_uncalibrated_rfo_image_skipped(ff, tmp_path):
+    """MN-prefixed file (no MNc) is rejected before header parsing."""
+    p = str(tmp_path / 'MNlight_001.fits')
+    open(p, 'wb').close()
+    with patch.object(ff, 'parseFitsHeader') as mock_parse:
+        assert ff.addFitsFile(p, MagicMock()) == 0
+    mock_parse.assert_not_called()
+
+
+def test_calibrated_rfo_image_not_skipped(ff, tmp_path):
+    """MNc-prefixed file passes the filter and proceeds to header parsing."""
+    p = str(tmp_path / 'MNclight_001.fits')
+    open(p, 'wb').close()
+    with patch.object(ff, 'parseFitsHeader', return_value=None) as mock_parse:
+        ff.addFitsFile(p, MagicMock())
+    mock_parse.assert_called_once()
+
+
+def test_non_rfo_image_not_skipped(ff, tmp_path):
+    """Files without MN prefix are unaffected by the RFO filter."""
+    p = str(tmp_path / 'NGC5194_300s.fits')
+    open(p, 'wb').close()
+    with patch.object(ff, 'parseFitsHeader', return_value=None) as mock_parse:
+        ff.addFitsFile(p, MagicMock())
+    mock_parse.assert_called_once()
