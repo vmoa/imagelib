@@ -172,6 +172,36 @@ def test_zipit_fitsz_served_as_fz(fresh_db, tmp_path):
         assert 'image.fits.fz' in zf.namelist()
 
 
+# ---------------------------------------------------------------------------
+# buildWhere_orgproject / buildWhere_observatory / buildWhere_observer (3e)
+# ---------------------------------------------------------------------------
+
+def test_buildwhere_orgproject_valid(m):
+    m.buildWhere_orgproject('AstOrg|Deep Sky Survey')
+    assert 'organization = ?' in m.get_where()
+    assert 'project = ?' in m.get_where()
+    assert 'AstOrg' in m.get_params()
+    assert 'Deep Sky Survey' in m.get_params()
+
+
+def test_buildwhere_orgproject_empty_ignored(m):
+    m.buildWhere_orgproject('')
+    assert m.get_where() == ''
+    assert m.get_params() == []
+
+
+def test_buildwhere_observatory(m):
+    m.buildWhere_observatory('RFO-RC20')
+    assert 'observatory = ?' in m.get_where()
+    assert 'RFO-RC20' in m.get_params()
+
+
+def test_buildwhere_observer(m):
+    m.buildWhere_observer('J. Smith')
+    assert 'observer = ?' in m.get_where()
+    assert 'J. Smith' in m.get_params()
+
+
 def test_zipit_fitsz_decompressed_to_fits(fresh_db, tmp_path):
     """fmt='fits' decompresses .fits.fz in memory and writes .fits into the ZIP."""
     import io

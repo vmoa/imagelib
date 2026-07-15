@@ -196,3 +196,56 @@ def test_non_rfo_image_not_skipped(ff, tmp_path):
     with patch.object(ff, 'parseFitsHeader', return_value=None) as mock_parse:
         ff.addFitsFile(p, MagicMock())
     mock_parse.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# buildDatabaseRecord — org/project/observatory/observer metadata (3e)
+# ---------------------------------------------------------------------------
+
+def test_build_record_asterism_metadata(ff):
+    """INSTABBR present → all four metadata fields populated from headers."""
+    headers = {
+        'OBJECT': 'M 51', 'DATE-OBS': '2024-06-01T04:30:00.000',
+        'EXPTIME': 300.0, 'IMAGETYP': 'Light Frame',
+        'NAXIS1': 200, 'NAXIS2': 100,
+        'INSTABBR': 'AstOrg', 'SSPROJ': 'Deep Sky Survey',
+        'OBSERVAT': 'RFO-RC20', 'OBSERVER': 'J. Smith',
+    }
+    with patch('catalog.Catalog.cname', return_value='M 51'):
+        record = ff.buildDatabaseRecord('/tmp/asterism.fits', headers)
+    assert record['organization'] == 'AstOrg'
+    assert record['project'] == 'Deep Sky Survey'
+    assert record['observatory'] == 'RFO-RC20'
+    assert record['observer'] == 'J. Smith'
+
+
+def test_build_record_direct_rfo_metadata(ff):
+    """No INSTABBR → organization='RFO', observatory/observer from headers, no project key."""
+    headers = {
+        'OBJECT': 'M 51', 'DATE-OBS': '2024-06-01T04:30:00.000',
+        'EXPTIME': 300.0, 'IMAGETYP': 'Light Frame',
+        'NAXIS1': 200, 'NAXIS2': 100,
+        'OBSERVAT': 'RFO-RC20', 'OBSERVER': 'G. Loyer',
+    }
+    with patch('catalog.Catalog.cname', return_value='M 51'):
+        record = ff.buildDatabaseRecord('/tmp/rfo.fits', headers)
+    assert record['organization'] == 'RFO'
+    assert 'project' not in record
+    assert record['observatory'] == 'RFO-RC20'
+    assert record['observer'] == 'G. Loyer'
+
+
+def test_build_record_calibration_no_metadata(ff):
+    """Cal frames: organization/project/observatory/observer must be absent from record."""
+    headers = {
+        'OBJECT': 'Dark', 'DATE-OBS': '2024-06-01T04:30:00.000',
+        'EXPTIME': 120.0, 'IMAGETYP': 'Dark Frame',
+        'NAXIS1': 200, 'NAXIS2': 100,
+        'OBSERVAT': 'RFO-RC20',
+    }
+    record = ff.buildDatabaseRecord('/tmp/dark.fits', headers)
+    assert record['imagetype'] == 'cal'
+    assert 'organization' not in record
+    assert 'project' not in record
+    assert 'observatory' not in record
+    assert 'observer' not in record

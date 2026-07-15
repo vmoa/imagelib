@@ -124,6 +124,45 @@ class Markup:
         logging.debug("fetchDates({}) ==> {} rows".format(target, len(dates)))
         return(dates)
 
+    def fetchOrgProjects(self):
+        '''Return list of distinct (organization, project) pairs where organization is set.'''
+        cur = self.db.con.cursor()
+        sql = "SELECT DISTINCT organization, project FROM fits WHERE organization IS NOT NULL ORDER BY organization, project"
+        return cur.execute(sql).fetchall()
+
+    def fetchObservatories(self):
+        '''Return list of distinct observatory values.'''
+        cur = self.db.con.cursor()
+        sql = "SELECT DISTINCT observatory FROM fits WHERE observatory IS NOT NULL ORDER BY observatory"
+        return [row[0] for row in cur.execute(sql).fetchall()]
+
+    def fetchObservers(self):
+        '''Return list of distinct observer values.'''
+        cur = self.db.con.cursor()
+        sql = "SELECT DISTINCT observer FROM fits WHERE observer IS NOT NULL ORDER BY observer"
+        return [row[0] for row in cur.execute(sql).fetchall()]
+
+    def buildWhere_orgproject(self, orgproject):
+        '''Update where clause to filter by org|project combined value.'''
+        if orgproject:
+            parts = orgproject.split('|', 1)
+            if len(parts) == 2:
+                org, project = parts
+                self.add_where('organization = ? AND project = ?', [org, project])
+                self.add_what('{}|{}'.format(org, project))
+
+    def buildWhere_observatory(self, observatory):
+        '''Update where clause to filter by observatory.'''
+        if observatory:
+            self.add_where('observatory = ?', [observatory])
+            self.add_what('observatory:{}'.format(observatory))
+
+    def buildWhere_observer(self, observer):
+        '''Update where clause to filter by observer.'''
+        if observer:
+            self.add_where('observer = ?', [observer])
+            self.add_what('observer:{}'.format(observer))
+
     def fetchDetails(self, target=None, date=None):
         '''Return list of details (tuple) that match target and date.'''
         cur = self.db.con.cursor()
@@ -170,7 +209,8 @@ class Markup:
 
 
     # Main UI entrypoint
-    def build_images(self, start=None, target=None, imgfilter='both', lastTarget=None):
+    def build_images(self, start=None, target=None, imgfilter='both', lastTarget=None,
+                     orgproject=None, observatory=None, observer=None):
         '''Build a template (dictionary) of which images to display.'''
         logging.debug("build_images(start={}, target={}, imgfilter={}, lastTarget={})".format(start,target,imgfilter,lastTarget))
         self.reset()
@@ -189,6 +229,13 @@ class Markup:
         images['imgfilter_checked'] = dict()
         for filter in [ 'cal', 'tgt', 'both' ]:
             images['imgfilter_checked'][filter] = 'checked' if filter == imgfilter else ''
+
+        if orgproject:
+            self.buildWhere_orgproject(orgproject)
+        if observatory:
+            self.buildWhere_observatory(observatory)
+        if observer:
+            self.buildWhere_observer(observer)
 
         self.buildWhere_target(target)
         targets = self.fetchTargets(target)
@@ -261,6 +308,12 @@ class Markup:
             images['collections'].append(collection)
 
         images['has_compressed'] = has_compressed
+        images['orgProjects'] = self.fetchOrgProjects()
+        images['observatories'] = self.fetchObservatories()
+        images['observers'] = self.fetchObservers()
+        images['orgproject'] = orgproject or ''
+        images['observatory'] = observatory or ''
+        images['observer'] = observer or ''
 
         for thang in [ 'target', 'date', 'start', 'prev', 'next' ]:
             if (thang in images):

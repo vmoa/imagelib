@@ -51,7 +51,10 @@ def top():
     t = markup.build_images(start = flask.request.form.get('start'),
                             target = flask.request.form.get('target'),
                             imgfilter = flask.request.form.get('imgfilter'),
-                            lastTarget = flask.request.form.get('last_target'))
+                            lastTarget = flask.request.form.get('last_target'),
+                            orgproject = flask.request.form.get('orgproject'),
+                            observatory = flask.request.form.get('observatory'),
+                            observer = flask.request.form.get('observer'))
     return flask.render_template('imagelib.html', **t)
 
 @app.route('/search', methods=['GET','POST'])
@@ -59,7 +62,10 @@ def search():
     app.logger.debug("Args: {}  Form: {}".format(flask.request.args.to_dict(), flask.request.form.to_dict()))
     target = flask.request.args.get('target')
     app.logger.debug("search target={}".format(target))
-    t = markup.build_images(target = target)
+    t = markup.build_images(target = target,
+                            orgproject = flask.request.args.get('orgproject'),
+                            observatory = flask.request.args.get('observatory'),
+                            observer = flask.request.args.get('observer'))
     return flask.render_template('imagelib.html', **t)
 
 @app.route('/download', methods=['GET','POST'])

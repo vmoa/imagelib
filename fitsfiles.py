@@ -59,7 +59,7 @@ class FitsFiles:
                 i += 1
 
             headers = dict()
-            for hdr in 'NAXIS1', 'NAXIS2', 'EXPTIME', 'IMAGETYP', 'XBINNING', 'YBINNING', 'OBJCTRA', 'OBJCTDEC', 'FILTER', 'OBJECT', 'DATE-OBS':
+            for hdr in 'NAXIS1', 'NAXIS2', 'EXPTIME', 'IMAGETYP', 'XBINNING', 'YBINNING', 'OBJCTRA', 'OBJCTDEC', 'FILTER', 'OBJECT', 'DATE-OBS', 'SSPROJ', 'INSTABBR', 'OBSERVAT', 'OBSERVER':
                 if hdr in list(hdu.header.keys()):
                     headers[hdr] = hdu.header[hdr]
 
@@ -93,6 +93,18 @@ class FitsFiles:
         else:
             record['target'] = catalog.Catalog.cname(record['object'])
             record['imagetype'] = 'tgt'
+
+        if record['imagetype'] == 'cal':
+            pass  # calibration frames: organization/project/observatory/observer all NULL
+        elif 'INSTABBR' in headers:
+            record['organization'] = headers['INSTABBR']
+            record['project'] = headers.get('SSPROJ')
+            record['observatory'] = headers.get('OBSERVAT')
+            record['observer'] = headers.get('OBSERVER')
+        else:
+            record['organization'] = 'RFO'
+            record['observatory'] = headers.get('OBSERVAT')
+            record['observer'] = headers.get('OBSERVER')
 
         record['timestamp'] = headers['DATE-OBS']           # ISO 8601 (GMT) eg: 2023-05-20T05:41:18.042
         datestr = headers['DATE-OBS']
