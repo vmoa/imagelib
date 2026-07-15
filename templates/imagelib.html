@@ -30,6 +30,10 @@
                         <span class="right">
                             <form name="dlform" method="POST" onSubmit="return(setRecids());" action="/download">
                             <input type="hidden" name="recids">
+                            {% if has_compressed %}
+                            <label style="font-size:small"><input type="radio" name="fmt" value="fz" checked>.fits.fz</label>
+                            <label style="font-size:small"><input type="radio" name="fmt" value="fits">.fits</label>
+                            {% endif %}
                             <input type="image" border="0" src="static/download.png" height="28" alt="[Download]">
                             </form>
                         </span>

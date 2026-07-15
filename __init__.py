@@ -65,7 +65,8 @@ def search():
 @app.route('/download', methods=['GET','POST'])
 def download():
     app.logger.debug("download({})".format(flask.request.form.get('recids')))
-    tempfn = markup.zipit(flask.request.form.get('recids'))
+    fmt = flask.request.form.get('fmt', 'fz')
+    tempfn = markup.zipit(flask.request.form.get('recids'), fmt=fmt)
     app.logger.debug("sending {}".format(tempfn))
     response = flask.send_file(tempfn, as_attachment=True)
     return response
