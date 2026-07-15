@@ -267,9 +267,10 @@ sudo chmod 700 /home/asterism/.ssh
 # 2. Point the user's passwd entry at the new home directory
 sudo usermod --home /home/asterism asterism
 
-# 3. Install the Ed25519 public key with SCP-only restriction
+# 3. Install the Ed25519 public key with SFTP-only restriction
+#    internal-sftp is built into sshd — no external binary required
 sudo tee /home/asterism/.ssh/authorized_keys <<'EOF'
-command="scp -t /home/nas/Eagle/Asterism/rfo",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKZKo+HxsGfAG58XOAbUeW8Nlhnibwaem6kBpQXRguef
+command="internal-sftp",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKZKo+HxsGfAG58XOAbUeW8Nlhnibwaem6kBpQXRguef
 EOF
 
 # 4. Lock down permissions (sshd rejects world-readable authorized_keys)
@@ -280,8 +281,8 @@ sudo chmod 600 /home/asterism/.ssh/authorized_keys
 sudo cat /home/asterism/.ssh/authorized_keys
 ```
 
-Step 5 should show a single line beginning with `command="scp -t ...` followed by the key.
+Step 5 should show a single line beginning with `command="internal-sftp"` followed by the key.
 
 ### End-to-end verification
 
-Ask BJ to SCP a test `.fits.fz` file to `asterism@imagelib.rfo.org:/home/nas/Eagle/Asterism/rfo/` and confirm it appears in that directory. Then wait for the next hourly cron run (or trigger `python3 fitsfiles.py` manually) and check `/tmp/fitsfiles.out` to confirm the file was ingested.
+Ask BJ to SFTP a test `.fits.fz` file to `asterism@imagelib.rfo.org` into `/home/nas/Eagle/Asterism/rfo/` and confirm it appears in that directory. Then wait for the next hourly cron run (or trigger `python3 fitsfiles.py` manually) and check `/tmp/fitsfiles.out` to confirm the file was ingested.
