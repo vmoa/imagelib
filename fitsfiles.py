@@ -129,12 +129,12 @@ class FitsFiles:
         return(record)
 
     def _maybe_organize(self, filename, headers):
-        '''If filename sits directly in ASTERISM_DROP, move it into a YYYY-MM-DD subfolder.'''
+        '''If filename sits directly in ASTERISM_DROP, move it into a YYYY/MM/DD subfolder.'''
         parent = os.path.dirname(os.path.abspath(filename))
         if parent != os.path.abspath(self.ASTERISM_DROP):
             return filename
-        date_str = headers['DATE-OBS'][:10]
-        dest_dir = os.path.join(parent, date_str)
+        year, month, day = headers['DATE-OBS'][:10].split('-')
+        dest_dir = os.path.join(parent, year, month, day)
         os.makedirs(dest_dir, exist_ok=True)
         dest = os.path.join(dest_dir, os.path.basename(filename))
         os.rename(filename, dest)

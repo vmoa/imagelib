@@ -240,26 +240,26 @@ def test_build_record_direct_rfo_metadata(ff):
 # ---------------------------------------------------------------------------
 
 def test_maybe_organize_moves_file_to_date_subfolder(ff, tmp_path):
-    """File in ASTERISM_DROP is moved into a YYYY-MM-DD subfolder."""
+    """File in ASTERISM_DROP is moved into a YYYY/MM/DD subfolder."""
     drop = tmp_path / 'rfo'
     drop.mkdir()
     fits_file = drop / 'image.fits.fz'
     fits_file.write_bytes(b'')
     ff.ASTERISM_DROP = str(drop)
     new_path = ff._maybe_organize(str(fits_file), {'DATE-OBS': '2026-07-11T03:45:00.000'})
-    assert new_path == str(drop / '2026-07-11' / 'image.fits.fz')
+    assert new_path == str(drop / '2026' / '07' / '11' / 'image.fits.fz')
     assert os.path.exists(new_path)
     assert not os.path.exists(str(fits_file))
 
 
 def test_maybe_organize_creates_date_dir(ff, tmp_path):
-    """ASTERISM_DROP/<date>/ is created if it doesn't already exist."""
+    """ASTERISM_DROP/YYYY/MM/DD/ tree is created if it doesn't already exist."""
     drop = tmp_path / 'rfo'
     drop.mkdir()
     (drop / 'image.fits.fz').write_bytes(b'')
     ff.ASTERISM_DROP = str(drop)
     ff._maybe_organize(str(drop / 'image.fits.fz'), {'DATE-OBS': '2026-07-11T03:45:00.000'})
-    assert (drop / '2026-07-11').is_dir()
+    assert (drop / '2026' / '07' / '11').is_dir()
 
 
 def test_maybe_organize_ignores_non_drop_folder(ff, tmp_path):
@@ -275,9 +275,9 @@ def test_maybe_organize_ignores_non_drop_folder(ff, tmp_path):
 
 
 def test_maybe_organize_ignores_file_already_in_date_subfolder(ff, tmp_path):
-    """File already in a date subfolder is not moved again."""
+    """File already in a YYYY/MM/DD subfolder is not moved again."""
     drop = tmp_path / 'rfo'
-    date_dir = drop / '2026-07-11'
+    date_dir = drop / '2026' / '07' / '11'
     date_dir.mkdir(parents=True)
     fits_file = date_dir / 'image.fits.fz'
     fits_file.write_bytes(b'')
