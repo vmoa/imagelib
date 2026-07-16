@@ -175,6 +175,24 @@ if basename.startswith('MN') and not basename.startswith('MNc'):
 
 Advance `VERSION` file from `v2.1.3` to `v3.1.0`.
 
+### 3g — Asterism drop folder date-subfolder organization
+
+**Requirement**: Asterism SFTP transfers arrive flat into `/home/nas/Eagle/Asterism/rfo/`. As the volume of files grows this will become unwieldy. Files must be moved into a `YYYY-MM-DD` subfolder (named from the `DATE-OBS` UTC date) during ingest, matching the convention used in `/home/nas/Eagle/SkyX/Images/`.
+
+**Decision**: Use UTC date from the `DATE-OBS` FITS header. For most RFO observing sessions the session stays within a single UTC date, so this is consistent with how the UI already groups images. No noon-to-noon or local-time adjustment is applied.
+
+**Implementation**: `fitsfiles.py` `_maybe_organize(filename, headers)` — called in `addFitsFile()` immediately after `parseFitsHeader()` returns, before `buildDatabaseRecord()` and before any DB insert. The method:
+1. Checks whether the file's parent directory is exactly `ASTERISM_DROP` (`/home/nas/Eagle/Asterism/rfo`); if not, returns the path unchanged.
+2. Extracts `DATE-OBS[:10]` for the subfolder name.
+3. Creates `ASTERISM_DROP/<YYYY-MM-DD>/` if it doesn't exist (`os.makedirs(..., exist_ok=True)`).
+4. Moves the file with `os.rename()` and returns the new path.
+
+Because the move happens before the path is recorded in the database, the stored `path` is always the final date-subfolder location. Files already in a subfolder (i.e., the `find` command picks them up on a later run) are untouched since their parent directory won't match `ASTERISM_DROP`.
+
+The `ASTERISM_DROP` constant is a class attribute on `FitsFiles`, overridable in tests.
+
+**Tests**: 4 new tests in `test_fitsfiles.py` — move + dir creation, non-drop-folder no-op, already-organized file no-op.
+
 ---
 
 ## Production Deployment
