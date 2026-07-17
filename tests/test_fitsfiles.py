@@ -235,6 +235,58 @@ def test_build_record_direct_rfo_metadata(ff):
     assert record['observer'] == 'G. Loyer'
 
 
+# ---------------------------------------------------------------------------
+# _maybe_organize — Asterism drop folder date-subfolder organization
+# ---------------------------------------------------------------------------
+
+def test_maybe_organize_moves_file_to_date_subfolder(ff, tmp_path):
+    """File in ASTERISM_DROP is moved into a YYYY/MM/DD subfolder."""
+    drop = tmp_path / 'rfo'
+    drop.mkdir()
+    fits_file = drop / 'image.fits.fz'
+    fits_file.write_bytes(b'')
+    ff.ASTERISM_DROP = str(drop)
+    new_path = ff._maybe_organize(str(fits_file), {'DATE-OBS': '2026-07-11T03:45:00.000'})
+    assert new_path == str(drop / '2026' / '07' / '11' / 'image.fits.fz')
+    assert os.path.exists(new_path)
+    assert not os.path.exists(str(fits_file))
+
+
+def test_maybe_organize_creates_date_dir(ff, tmp_path):
+    """ASTERISM_DROP/YYYY/MM/DD/ tree is created if it doesn't already exist."""
+    drop = tmp_path / 'rfo'
+    drop.mkdir()
+    (drop / 'image.fits.fz').write_bytes(b'')
+    ff.ASTERISM_DROP = str(drop)
+    ff._maybe_organize(str(drop / 'image.fits.fz'), {'DATE-OBS': '2026-07-11T03:45:00.000'})
+    assert (drop / '2026' / '07' / '11').is_dir()
+
+
+def test_maybe_organize_ignores_non_drop_folder(ff, tmp_path):
+    """Files not in ASTERISM_DROP are returned unchanged."""
+    other = tmp_path / 'other'
+    other.mkdir()
+    fits_file = other / 'image.fits.fz'
+    fits_file.write_bytes(b'')
+    ff.ASTERISM_DROP = str(tmp_path / 'rfo')  # different directory
+    new_path = ff._maybe_organize(str(fits_file), {'DATE-OBS': '2026-07-11T03:45:00.000'})
+    assert new_path == str(fits_file)
+    assert os.path.exists(str(fits_file))
+
+
+def test_maybe_organize_ignores_file_already_in_date_subfolder(ff, tmp_path):
+    """File already in a YYYY/MM/DD subfolder is not moved again."""
+    drop = tmp_path / 'rfo'
+    date_dir = drop / '2026' / '07' / '11'
+    date_dir.mkdir(parents=True)
+    fits_file = date_dir / 'image.fits.fz'
+    fits_file.write_bytes(b'')
+    ff.ASTERISM_DROP = str(drop)
+    new_path = ff._maybe_organize(str(fits_file), {'DATE-OBS': '2026-07-11T03:45:00.000'})
+    assert new_path == str(fits_file)
+    assert os.path.exists(str(fits_file))
+
+
 def test_build_record_calibration_no_metadata(ff):
     """Cal frames: organization/project/observatory/observer must be absent from record."""
     headers = {

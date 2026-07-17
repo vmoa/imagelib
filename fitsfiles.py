@@ -28,6 +28,9 @@ class FitsFiles:
     # Patterns of FITS filenames to search for (used to build `find` args dynamically)
     FILE_PATTERNS = ['*.fits', '*.fit', '*.fits.fz']
 
+    # Flat drop folder for Asterism uploads; files here are moved into date subfolders on ingest
+    ASTERISM_DROP = '/home/nas/Eagle/Asterism/rfo'
+
     # Calibration Frame Map of FITS lower(`IMAGETYP`) --> `target` name
     CFrames = {
         'dark frame':   'Dark Frame',
@@ -125,6 +128,19 @@ class FitsFiles:
             record['y'] = headers['NAXIS2']
         return(record)
 
+    def _maybe_organize(self, filename, headers):
+        '''If filename sits directly in ASTERISM_DROP, move it into a YYYY/MM/DD subfolder.'''
+        parent = os.path.dirname(os.path.abspath(filename))
+        if parent != os.path.abspath(self.ASTERISM_DROP):
+            return filename
+        year, month, day = headers['DATE-OBS'][:10].split('-')
+        dest_dir = os.path.join(parent, year, month, day)
+        os.makedirs(dest_dir, exist_ok=True)
+        dest = os.path.join(dest_dir, os.path.basename(filename))
+        os.rename(filename, dest)
+        logging.info("Organized {} -> {}".format(filename, dest))
+        return dest
+
     def fits2png(self, record):
         '''Generate and png preview and thumbnail images; return updated database record.'''
 
@@ -218,6 +234,7 @@ class FitsFiles:
         headers = self.parseFitsHeader(filename)
         if (not headers):
             return(0)
+        filename = self._maybe_organize(filename, headers)
         record = self.buildDatabaseRecord(filename, headers)
         logging.debug(">>> addFitsFile: imagetype: {}".format(record['imagetype']))
         record = self.fits2png(record)
