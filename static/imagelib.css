@@ -55,14 +55,16 @@ div.page_title_bar, div.page_footer_bar {
     font-size: 24px;
 }
 
-.homebuttons {
+.right_section {
     float: right;
+}
+
+.homebuttons {
     padding-left: 22px;
     padding-right: 8px;
 }
 
 .filters {
-    float: right;
     background-color: #9393FF;
     padding-left: 8px;
     padding-right: 8px;
