@@ -31,7 +31,18 @@ html, body {
     background-color: #B3B3FF;
 }
 
-div.page_title_bar, div.page_footer_bar {
+div.page_title_bar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    line-height: 18px;
+    padding: 8px;
+    background-color: #B3B3FF;
+    color: #0B00FF;
+    font-size: 18px;
+}
+
+div.page_footer_bar {
     height: 32px;
     line-height: 18px;
     border: 0px;
@@ -45,7 +56,6 @@ div.page_title_bar, div.page_footer_bar {
 }
 
 .page_title_left {
-    float: left;
     padding-left: 2px;
     padding-right: 8px;
 }
@@ -56,18 +66,26 @@ div.page_title_bar, div.page_footer_bar {
 }
 
 .right_section {
-    float: right;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
 }
 
 .homebuttons {
+    display: flow-root;
     padding-left: 22px;
     padding-right: 8px;
 }
 
 .filters {
-    background-color: #9393FF;
+    display: flow-root;
     padding-left: 8px;
     padding-right: 8px;
+}
+
+.filters select {
+    max-width: 200px;
 }
 
 .message {
