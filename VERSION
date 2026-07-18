@@ -1,6 +1,12 @@
-v3.1.0
+v3.1.1
 
 Version history:
+
+v3.1.1: Fri Jul 18 2026
+
+    Header layout polish: 3-column flex header, native select dropdowns for
+    Date/Org/Observatory/Observer, Awesomplete retained for Target, stats on
+    individual lines, home block two-column layout
 
 v3.1.0: Mon Jul 14 2026
 
