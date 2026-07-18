@@ -41,6 +41,7 @@ class Markup:
         self.total_cals = cur.execute("select count(*) from fits where imagetype = 'cal'").fetchone()[0]
         self.total_tgts = cur.execute("select count(*) from fits where imagetype = 'tgt'").fetchone()[0]
         self.distinct_tgts = cur.execute("select count(distinct(target)) from fits where imagetype = 'tgt'").fetchone()[0]
+        self.has_any_compressed = cur.execute("SELECT COUNT(*) FROM fits WHERE path LIKE '%.fits.fz' LIMIT 1").fetchone()[0] > 0
 
     def add_where(self, clause, params=None):
         self.where_list.append((clause, params or []))
@@ -244,11 +245,13 @@ class Markup:
             images['total_cals'] = _cur.execute("SELECT COUNT(*) FROM fits WHERE imagetype='cal' AND {}".format(_where), _params).fetchone()[0]
             images['total_tgts'] = _cur.execute("SELECT COUNT(*) FROM fits WHERE imagetype='tgt' AND {}".format(_where), _params).fetchone()[0]
             images['distinct_tgts'] = _cur.execute("SELECT COUNT(DISTINCT target) FROM fits WHERE imagetype='tgt' AND {}".format(_where), _params).fetchone()[0]
+            images['has_compressed'] = _cur.execute("SELECT COUNT(*) FROM fits WHERE path LIKE '%.fits.fz' AND {}".format(_where), _params).fetchone()[0] > 0
         else:
             images['total_rows'] = self.total_rows
             images['total_cals'] = self.total_cals
             images['total_tgts'] = self.total_tgts
             images['distinct_tgts'] = self.distinct_tgts
+            images['has_compressed'] = self.has_any_compressed
 
         targets = self.fetchTargets(target)
         if (len(targets) == 0):
@@ -280,7 +283,6 @@ class Markup:
         images['title'] = "RFO Image Library"
 
         thumb_count = 0
-        has_compressed = False
         images['collections'] = list()
         for date in dates[startX:]:
 
@@ -306,8 +308,6 @@ class Markup:
                 thumb_count += 1
                 sequence += 1
                 recid, thisTarget, thumbnail, preview, path = row
-                if path and path.endswith('.fits.fz'):
-                    has_compressed = True
                 if (thumbnail[0:15] == '/home/nas/Eagle'):
                     thumbnail = thumbnail[10:]
                 pic = dict()
@@ -319,7 +319,6 @@ class Markup:
 
             images['collections'].append(collection)
 
-        images['has_compressed'] = has_compressed
         images['orgProjects'] = self.fetchOrgProjects()
         images['observatories'] = self.fetchObservatories()
         images['observers'] = self.fetchObservers()
