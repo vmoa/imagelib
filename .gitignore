@@ -6,12 +6,14 @@ m57.jpg
 fits.last_run
 fits.db*
 fits/
+Eagle
 Eagle/
 SAC_DeepSky*
 
 # Awesomeplete: https://github.com/LeaVerou/awesomplete
 static/awesomplete
 
+.secret_key
 twilio.conf
 __pycache__
 *.pyc
