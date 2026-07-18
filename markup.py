@@ -218,10 +218,6 @@ class Markup:
         images = dict()
         self.buildWhere_imgfilter(imgfilter)
         images['version'] = self.version
-        images['total_rows'] = self.total_rows
-        images['total_cals'] = self.total_cals
-        images['total_tgts'] = self.total_tgts
-        images['distinct_tgts'] = self.distinct_tgts
 
         images['allTargets'] = self.fetchTargets(None)  # for autofill
 
@@ -238,6 +234,22 @@ class Markup:
             self.buildWhere_observer(observer)
 
         self.buildWhere_target(target)
+
+        # Compute stats filtered to the current search criteria
+        _cur = self.db.con.cursor()
+        _where = self.get_where()
+        _params = self.get_params()
+        if _where:
+            images['total_rows'] = _cur.execute("SELECT COUNT(*) FROM fits WHERE {}".format(_where), _params).fetchone()[0]
+            images['total_cals'] = _cur.execute("SELECT COUNT(*) FROM fits WHERE imagetype='cal' AND {}".format(_where), _params).fetchone()[0]
+            images['total_tgts'] = _cur.execute("SELECT COUNT(*) FROM fits WHERE imagetype='tgt' AND {}".format(_where), _params).fetchone()[0]
+            images['distinct_tgts'] = _cur.execute("SELECT COUNT(DISTINCT target) FROM fits WHERE imagetype='tgt' AND {}".format(_where), _params).fetchone()[0]
+        else:
+            images['total_rows'] = self.total_rows
+            images['total_cals'] = self.total_cals
+            images['total_tgts'] = self.total_tgts
+            images['distinct_tgts'] = self.distinct_tgts
+
         targets = self.fetchTargets(target)
         if (len(targets) == 0):
             # Flash an error and refetch lastTarget
@@ -265,7 +277,7 @@ class Markup:
 
         logging.debug("dates: ({} of 'em)".format(len(dates)))
         logging.debug("start: {}".format(start))
-        images['title'] = "RFO Image Library: {}".format(self.get_what())  # set in searchType() as a side effect of any fetchXxx() call
+        images['title'] = "RFO Image Library"
 
         thumb_count = 0
         has_compressed = False
