@@ -17,8 +17,10 @@
                 <div class="page_title_left" id="page_title_left">
                     <span class="page_title_title">{{ title }}</span>
                     <br/>
-                    <span style="display:block; padding-left:10px; padding-top:4px;">Total images: {{ total_rows }}, Distinct names: {{ distinct_tgts }}</span>
-                    <span style="display:block; padding-left:10px;">Total targets: {{ total_tgts }}, Calibration frames: {{ total_cals }}</span>
+                    <span style="display:block; padding-left:10px; padding-top:4px;">Total images: {{ total_rows }}</span>
+                    <span style="display:block; padding-left:10px;">Distinct names: {{ distinct_tgts }}</span>
+                    <span style="display:block; padding-left:10px;">Total targets: {{ total_tgts }}</span>
+                    <span style="display:block; padding-left:10px;">Calibration frames: {{ total_cals }}</span>
                 </div>
 
                 <div class="filters" id="filters">
@@ -53,12 +55,10 @@
                             <input type="hidden" name="imgfilter" value="{{ imgfilter }}"/>
                             <span class="right"><input type="image" border="0" src="static/search.png" height="28" alt="[Search]"></span>
                             <span style="float:right; padding-top:4px;">
-                                Target:&nbsp;<select name="target">
-                                    <option value="">All</option>
-                                    {% for t in allTargets %}
-                                    <option value="{{ t }}" {% if target == t %}selected{% endif %}>{{ t }}</option>
-                                    {% endfor %}
-                                </select>&nbsp;
+                                Target:&nbsp;<input class="dropdown" id="awesomeTarget" name="target" value="{{ target }}" />&nbsp;
+                                <datalist id="targetlist">{% for t in allTargets %}
+                                  <option>{{ t }}</option>{% endfor %}
+                                </datalist>
                             </span>
                             </form>
                         </span>
@@ -139,27 +139,21 @@
                 </div>
 
                 <div class="homebuttons" id="homebuttons">
-                    <!-- buttons line one -->
-                    <span class="right">
-                        <span class="right"><a href='/' alt='Home'><img src="static/home.png" height="28" alt="[Home]"></a></span>
-                        <span class="right"><img src="static/1x1-transparent.png" width="8" height="1"></span>
-                        <span class="right">
-                            <form name="dlform" method="POST" onSubmit="return(setRecids());" action="/download">
-                            <input type="hidden" name="recids">
-                            {% if has_compressed %}
-                            <label><input type="radio" name="fmt" value="fz" checked>.fits.fz</label>
-                            <label><input type="radio" name="fmt" value="fits">.fits</label>
-                            {% endif %}
-                            <input type="image" border="0" src="static/download.png" height="28" alt="[Download]">
-                            </form>
-                        </span>
-                        <span class="right"><img src="static/1x1-transparent.png" width="8" height="1"></span>
-                        <span class="right"><img src="static/help.png" height="28" alt="[Help]" onClick="help()"></span>
+                    <span style="float:right; text-align:center;">
+                        <a href='/' alt='Home'><img src="static/home.png" height="28" alt="[Home]"></a><br/>
+                        <img src="static/help.png" height="28" alt="[Help]" onClick="help()"><br/>
+                        Version: {{ version }}
                     </span>
-
-                    <!-- buttons line two -->
-                    <br/>
-                    <span class="right" style="padding-top:4px;">Version: {{ version }}</span>
+                    <span style="float:right; padding-right:10px;">
+                        <form name="dlform" method="POST" onSubmit="return(setRecids());" action="/download">
+                        <input type="hidden" name="recids">
+                        <input type="image" border="0" src="static/download.png" height="28" alt="[Download]"><br/>
+                        {% if has_compressed %}
+                        <label><input type="radio" name="fmt" value="fz" checked>.fits.fz</label><br/>
+                        <label><input type="radio" name="fmt" value="fits">.fits</label>
+                        {% endif %}
+                        </form>
+                    </span>
                 </div>
             </div>
 

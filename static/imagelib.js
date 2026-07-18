@@ -9,6 +9,15 @@ var color_downloading  = 'orange';
 /* Element that is currently being previewed (global so that keydownHandler() can access) */
 var previewElement = 0;
 
+/* Initialize Awesomplete for Target search */
+document.addEventListener("DOMContentLoaded", function() {
+    new Awesomplete(document.getElementById("awesomeTarget"), {
+        list: "#targetlist",
+        maxItems: 25,
+        minChars: 1,
+    });
+});
+
 
 
 /* Set `rfoIsSelected` attribute based on mode: 0=none, 1=all, -1=toggle */
