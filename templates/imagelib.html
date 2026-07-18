@@ -119,7 +119,7 @@
                             Org/Project:&nbsp;<select name="orgproject">
                                 <option value="">All</option>
                                 {% for org, proj in orgProjects %}
-                                <option value="{{ org }}|{{ proj }}" {% if orgproject == org + '|' + proj %}selected{% endif %}>{{ org }}|{{ proj }}</option>
+                                <option value="{{ org }}|{{ proj }}" {% if orgproject == org ~ '|' ~ proj %}selected{% endif %}>{{ org }}|{{ proj }}</option>
                                 {% endfor %}
                             </select>&nbsp;
                             {% endif %}
