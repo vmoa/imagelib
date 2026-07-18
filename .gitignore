@@ -12,6 +12,7 @@ SAC_DeepSky*
 # Awesomeplete: https://github.com/LeaVerou/awesomplete
 static/awesomplete
 
+.secret_key
 twilio.conf
 __pycache__
 *.pyc
