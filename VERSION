@@ -1,6 +1,13 @@
-v3.1.1
+v3.1.2
 
 Version history:
+
+v3.1.2: Fri Jul 18 2026
+
+    Filtered stats and title: stats reflect active search, title fixed to
+    "RFO Image Library". Select arrow padding fix. Responsive layout for
+    tablet and phone. has_compressed scoped to filtered result set.
+    Responsive flex-wrap only below 1200px.
 
 v3.1.1: Fri Jul 18 2026
 
