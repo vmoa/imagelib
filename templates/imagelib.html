@@ -21,31 +21,6 @@
                     <span style="display:block; padding-left:10px;">Total targets: {{ total_tgts }}, Calibration frames: {{ total_cals }}</span>
                 </div>
 
-                <div class="right_section">
-                <div class="homebuttons" id="homebuttons">
-                    <!-- buttons line one -->
-                    <span class="right">
-                        <span class="right"><a href='/' alt='Home'><img src="static/home.png" height="28" alt="[Home]"></a></span>
-                        <span class="right"><img src="static/1x1-transparent.png" width="8" height="1"></span>
-                        <span class="right">
-                            <form name="dlform" method="POST" onSubmit="return(setRecids());" action="/download">
-                            <input type="hidden" name="recids">
-                            {% if has_compressed %}
-                            <label style="font-size:small"><input type="radio" name="fmt" value="fz" checked>.fits.fz</label>
-                            <label style="font-size:small"><input type="radio" name="fmt" value="fits">.fits</label>
-                            {% endif %}
-                            <input type="image" border="0" src="static/download.png" height="28" alt="[Download]">
-                            </form>
-                        </span>
-                        <span class="right"><img src="static/1x1-transparent.png" width="8" height="1"></span>
-                        <span class="right"><img src="static/help.png" height="28" alt="[Help]" onClick="help()"></span>
-                    </span>
-
-                    <!-- buttons line two -->
-                    <br/>
-                    <span class="right" style="padding-top:4px;">Version: {{ version }}</span>
-                </div>
-
                 <div class="filters" id="filters">
 
                     <!-- filter line one -->
@@ -59,10 +34,12 @@
                             <input type="hidden" name="imgfilter" value="{{ imgfilter }}"/>
                             <span class="right"><input type="image" border="0" src="static/search.png" height="28" alt="[Search]"></span>
                             <span style="float:right; padding-top:4px;">
-                                Date:&nbsp;<input class="dropdown" id="awesomeDate" name="start" value="{{ date }}" />&nbsp;
-                                <datalist id="datelist">{% for date in obsDates %}
-                                  <option>{{ date }}</option>{% endfor %}
-                                </datalist>
+                                Date:&nbsp;<select name="start">
+                                    <option value="">All</option>
+                                    {% for d in obsDates %}
+                                    <option value="{{ d }}" {% if date == d %}selected{% endif %}>{{ d }}</option>
+                                    {% endfor %}
+                                </select>&nbsp;
                             </span>
                             </form>
                         </span>
@@ -76,10 +53,12 @@
                             <input type="hidden" name="imgfilter" value="{{ imgfilter }}"/>
                             <span class="right"><input type="image" border="0" src="static/search.png" height="28" alt="[Search]"></span>
                             <span style="float:right; padding-top:4px;">
-                                Target:&nbsp;<input class="dropdown" id="awesomeTarget" name="target" value="{{ target }}" />&nbsp;
-                                <datalist id="targetlist">{% for target in allTargets %}
-                                  <option>{{ target }}</option>{% endfor %}
-                                </datalist>
+                                Target:&nbsp;<select name="target">
+                                    <option value="">All</option>
+                                    {% for t in allTargets %}
+                                    <option value="{{ t }}" {% if target == t %}selected{% endif %}>{{ t }}</option>
+                                    {% endfor %}
+                                </select>&nbsp;
                             </span>
                             </form>
                         </span>
@@ -158,7 +137,30 @@
                     {% endwith %}
 
                 </div>
-                </div><!-- right_section -->
+
+                <div class="homebuttons" id="homebuttons">
+                    <!-- buttons line one -->
+                    <span class="right">
+                        <span class="right"><a href='/' alt='Home'><img src="static/home.png" height="28" alt="[Home]"></a></span>
+                        <span class="right"><img src="static/1x1-transparent.png" width="8" height="1"></span>
+                        <span class="right">
+                            <form name="dlform" method="POST" onSubmit="return(setRecids());" action="/download">
+                            <input type="hidden" name="recids">
+                            {% if has_compressed %}
+                            <label><input type="radio" name="fmt" value="fz" checked>.fits.fz</label>
+                            <label><input type="radio" name="fmt" value="fits">.fits</label>
+                            {% endif %}
+                            <input type="image" border="0" src="static/download.png" height="28" alt="[Download]">
+                            </form>
+                        </span>
+                        <span class="right"><img src="static/1x1-transparent.png" width="8" height="1"></span>
+                        <span class="right"><img src="static/help.png" height="28" alt="[Help]" onClick="help()"></span>
+                    </span>
+
+                    <!-- buttons line two -->
+                    <br/>
+                    <span class="right" style="padding-top:4px;">Version: {{ version }}</span>
+                </div>
             </div>
 
             {% for collection in collections %}
