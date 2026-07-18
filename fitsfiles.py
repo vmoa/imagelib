@@ -9,6 +9,7 @@ import json
 import os
 import re
 import sys
+import shutil
 import subprocess   # Use subprocess for safer command execution
 
 from astropy.io import fits
@@ -137,7 +138,10 @@ class FitsFiles:
         dest_dir = os.path.join(parent, year, month, day)
         os.makedirs(dest_dir, exist_ok=True)
         dest = os.path.join(dest_dir, os.path.basename(filename))
-        os.rename(filename, dest)
+        shutil.copy2(filename, dest)
+        if os.path.getsize(dest) != os.path.getsize(filename):
+            raise RuntimeError("Copy verification failed: size mismatch for {}".format(filename))
+        os.unlink(filename)
         logging.info("Organized {} -> {}".format(filename, dest))
         return dest
 
