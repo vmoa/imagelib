@@ -359,15 +359,28 @@ class Markup:
                 logging.debug("adding {}".format(row))
                 id, path = row
                 if fmt == 'fits' and path.endswith('.fits.fz'):
-                    with astrofits.open(path) as hdul:
+                    with astrofits.open(path, memmap=False) as hdul:
                         # Convert each CompImageHDU to a plain ImageHDU so the
                         # output is genuinely uncompressed. writeto() alone does
                         # not decompress — it re-emits the CompImageHDU as-is.
                         new_hdus = []
                         for hdu in hdul:
-                            if isinstance(hdu, astrofits.CompImageHDU):
-                                new_hdus.append(astrofits.ImageHDU(data=hdu.data, header=hdu.header))
+                            hdu_typename = type(hdu).__name__
+                            is_comp = isinstance(hdu, astrofits.CompImageHDU)
+                            has_zimage = hdu.header.get('ZIMAGE', False)
+                            logging.info("zipit: {} HDU '{}' type={} is_comp={} ZIMAGE={}".format(
+                                os.path.basename(path), hdu.name, hdu_typename, is_comp, has_zimage))
+                            if is_comp:
+                                try:
+                                    new_hdus.append(astrofits.ImageHDU(data=hdu.data, header=hdu.header))
+                                except Exception as e:
+                                    logging.warning("zipit: decompress failed for {}: {}".format(
+                                        os.path.basename(path), e))
+                                    new_hdus.append(hdu.copy())
                             else:
+                                if has_zimage:
+                                    logging.warning("zipit: HDU has ZIMAGE=T but is not CompImageHDU"
+                                                    " (type={}) — kept compressed".format(hdu_typename))
                                 new_hdus.append(hdu.copy())
                         buf = io.BytesIO()
                         astrofits.HDUList(new_hdus).writeto(buf, output_verify='silentfix')
