@@ -359,34 +359,54 @@ class Markup:
                 logging.debug("adding {}".format(row))
                 id, path = row
                 if fmt == 'fits' and path.endswith('.fits.fz'):
-                    with astrofits.open(path, memmap=False) as hdul:
-                        # Convert each CompImageHDU to a plain ImageHDU so the
-                        # output is genuinely uncompressed. writeto() alone does
-                        # not decompress — it re-emits the CompImageHDU as-is.
-                        new_hdus = []
+                    with astrofits.open(path, memmap=False,
+                                        do_not_scale_image_data=True) as hdul:
+                        # Decompress Rice-compressed images. do_not_scale_image_data
+                        # keeps native integers + BSCALE/BZERO in the header,
+                        # matching funpack output exactly.
+                        decomp_hdus = []
+                        found_comp = False
                         for hdu in hdul:
-                            hdu_typename = type(hdu).__name__
                             is_comp = isinstance(hdu, astrofits.CompImageHDU)
-                            has_zimage = hdu.header.get('ZIMAGE', False)
-                            logging.info("zipit: {} HDU '{}' type={} is_comp={} ZIMAGE={}".format(
-                                os.path.basename(path), hdu.name, hdu_typename, is_comp, has_zimage))
+                            logging.info("zipit: {} HDU '{}' type={} is_comp={}".format(
+                                os.path.basename(path), hdu.name,
+                                type(hdu).__name__, is_comp))
                             if is_comp:
+                                found_comp = True
                                 try:
-                                    new_hdus.append(astrofits.ImageHDU(data=hdu.data, header=hdu.header))
+                                    decomp_hdus.append(astrofits.ImageHDU(
+                                        data=hdu.data, header=hdu.header))
                                 except Exception as e:
                                     logging.warning("zipit: decompress failed for {}: {}".format(
                                         os.path.basename(path), e))
-                                    new_hdus.append(hdu.copy())
+                                    decomp_hdus.append(hdu.copy())
+                            elif (isinstance(hdu, astrofits.PrimaryHDU)
+                                  and hdu.header.get('NAXIS', 0) == 0):
+                                pass  # skip fpack's empty placeholder primary
                             else:
-                                if has_zimage:
-                                    logging.warning("zipit: HDU has ZIMAGE=T but is not CompImageHDU"
-                                                    " (type={}) — kept compressed".format(hdu_typename))
-                                new_hdus.append(hdu.copy())
+                                decomp_hdus.append(hdu.copy())
+
+                    arcname = os.path.basename(path)[:-3]  # strip .fz → .fits
+
+                    if found_comp:
+                        # Simple FITS readers only inspect HDU[0]. Promote the
+                        # first decompressed ImageHDU to PrimaryHDU so the output
+                        # is readable by readers that don't handle extensions.
+                        if not decomp_hdus:
+                            final_hdus = [astrofits.PrimaryHDU()]
+                        elif isinstance(decomp_hdus[0], astrofits.ImageHDU):
+                            first = decomp_hdus[0]
+                            final_hdus = ([astrofits.PrimaryHDU(
+                                               data=first.data, header=first.header)]
+                                          + decomp_hdus[1:])
+                        else:
+                            final_hdus = decomp_hdus
                         buf = io.BytesIO()
-                        astrofits.HDUList(new_hdus).writeto(buf, output_verify='silentfix')
+                        astrofits.HDUList(final_hdus).writeto(buf, output_verify='silentfix')
                         buf.seek(0)
-                        arcname = os.path.basename(path)[:-3]  # strip '.fz' → .fits
                         zip.writestr(arcname, buf.read())
+                    else:
+                        zip.write(path, arcname=arcname)
                 else:
                     zip.write(path, arcname=os.path.basename(path))
         logging.debug("return({})".format(tempfn))
