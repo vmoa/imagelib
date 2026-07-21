@@ -360,8 +360,17 @@ class Markup:
                 id, path = row
                 if fmt == 'fits' and path.endswith('.fits.fz'):
                     with astrofits.open(path) as hdul:
+                        # Convert each CompImageHDU to a plain ImageHDU so the
+                        # output is genuinely uncompressed. writeto() alone does
+                        # not decompress — it re-emits the CompImageHDU as-is.
+                        new_hdus = []
+                        for hdu in hdul:
+                            if isinstance(hdu, astrofits.CompImageHDU):
+                                new_hdus.append(astrofits.ImageHDU(data=hdu.data, header=hdu.header))
+                            else:
+                                new_hdus.append(hdu.copy())
                         buf = io.BytesIO()
-                        hdul.writeto(buf)
+                        astrofits.HDUList(new_hdus).writeto(buf, output_verify='silentfix')
                         buf.seek(0)
                         arcname = os.path.basename(path)[:-3]  # strip '.fz' → .fits
                         zip.writestr(arcname, buf.read())
