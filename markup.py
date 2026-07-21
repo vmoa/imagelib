@@ -368,9 +368,6 @@ class Markup:
                         found_comp = False
                         for hdu in hdul:
                             is_comp = isinstance(hdu, astrofits.CompImageHDU)
-                            logging.info("zipit: {} HDU '{}' type={} is_comp={}".format(
-                                os.path.basename(path), hdu.name,
-                                type(hdu).__name__, is_comp))
                             if is_comp:
                                 found_comp = True
                                 try:
