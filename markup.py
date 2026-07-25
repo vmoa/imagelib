@@ -126,9 +126,9 @@ class Markup:
         return(dates)
 
     def fetchOrgProjects(self):
-        '''Return list of distinct (organization, project) pairs where organization is set.'''
+        '''Return list of distinct (organization, project) pairs where at least one field is set.'''
         cur = self.db.con.cursor()
-        sql = "SELECT DISTINCT organization, project FROM fits WHERE organization IS NOT NULL ORDER BY organization, project"
+        sql = "SELECT DISTINCT organization, project FROM fits WHERE organization IS NOT NULL OR project IS NOT NULL ORDER BY organization, project"
         return cur.execute(sql).fetchall()
 
     def fetchObservatories(self):
@@ -144,12 +144,16 @@ class Markup:
         return [row[0] for row in cur.execute(sql).fetchall()]
 
     def buildWhere_orgproject(self, orgproject):
-        '''Update where clause to filter by org|project combined value.'''
+        '''Update where clause to filter by org|project combined value.
+        The string "None" (Jinja2 rendering of Python None) is treated as SQL NULL.'''
         if orgproject:
             parts = orgproject.split('|', 1)
             if len(parts) == 2:
                 org, project = parts
-                self.add_where('organization = ? AND project = ?', [org, project])
+                org_clause = 'organization IS NULL' if org == 'None' else 'organization = ?'
+                proj_clause = 'project IS NULL'     if project == 'None' else 'project = ?'
+                params = ([org] if org != 'None' else []) + ([project] if project != 'None' else [])
+                self.add_where('{} AND {}'.format(org_clause, proj_clause), params)
                 self.add_what('{}|{}'.format(org, project))
 
     def buildWhere_observatory(self, observatory):

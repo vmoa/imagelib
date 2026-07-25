@@ -106,7 +106,8 @@ class FitsFiles:
             record['observatory'] = headers.get('OBSERVAT')
             record['observer'] = headers.get('OBSERVER')
         else:
-            record['organization'] = 'RFO'
+            # organization stays NULL — requires INSTABBR in FITS header (Asterism bug)
+            record['project'] = headers.get('SSPROJ')
             record['observatory'] = headers.get('OBSERVAT')
             record['observer'] = headers.get('OBSERVER')
 
