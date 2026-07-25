@@ -82,7 +82,7 @@ class FitsFiles:
     def buildDatabaseRecord(self, filename, headers):
         '''Translate FITS headers into database record fields.'''
         record = dict()
-        record['path'] = filename
+        record['path'] = os.path.realpath(filename)
 
         if ('OBJECT' in headers):
             record['object'] = headers['OBJECT']
@@ -131,8 +131,8 @@ class FitsFiles:
 
     def _maybe_organize(self, filename, headers):
         '''If filename sits directly in ASTERISM_DROP, move it into a YYYY/MM/DD subfolder.'''
-        parent = os.path.dirname(os.path.abspath(filename))
-        if parent != os.path.abspath(self.ASTERISM_DROP):
+        parent = os.path.dirname(os.path.realpath(filename))
+        if parent != os.path.realpath(self.ASTERISM_DROP):
             return filename
         year, month, day = headers['DATE-OBS'][:10].split('-')
         dest_dir = os.path.join(parent, year, month, day)
