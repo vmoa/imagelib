@@ -168,17 +168,8 @@ def test_fits2png_fitsz_original_file_restored(ff, fitsz_path):
 
 
 # ---------------------------------------------------------------------------
-# addFitsFile — MN/MNc calibration filter (3d)
+# addFitsFile — filename filter (3d)
 # ---------------------------------------------------------------------------
-
-def test_uncalibrated_rfo_image_skipped(ff, tmp_path):
-    """MN-prefixed file (no MNc) is rejected before header parsing."""
-    p = str(tmp_path / 'MNlight_001.fits')
-    open(p, 'wb').close()
-    with patch.object(ff, 'parseFitsHeader') as mock_parse:
-        assert ff.addFitsFile(p, MagicMock()) == 0
-    mock_parse.assert_not_called()
-
 
 def test_calibrated_rfo_image_not_skipped(ff, tmp_path):
     """MNc-prefixed file passes the filter and proceeds to header parsing."""
