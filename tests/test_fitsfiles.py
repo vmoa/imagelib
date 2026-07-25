@@ -211,7 +211,7 @@ def test_build_record_asterism_metadata(ff):
 
 
 def test_build_record_direct_rfo_metadata(ff):
-    """No INSTABBR → organization='RFO', observatory/observer from headers, no project key."""
+    """No INSTABBR → organization not set, project None, observatory/observer from headers."""
     headers = {
         'OBJECT': 'M 51', 'DATE-OBS': '2024-06-01T04:30:00.000',
         'EXPTIME': 300.0, 'IMAGETYP': 'Light Frame',
@@ -220,8 +220,8 @@ def test_build_record_direct_rfo_metadata(ff):
     }
     with patch('catalog.Catalog.cname', return_value='M 51'):
         record = ff.buildDatabaseRecord('/tmp/rfo.fits', headers)
-    assert record['organization'] == 'RFO'
-    assert 'project' not in record
+    assert record.get('organization') is None
+    assert record.get('project') is None
     assert record['observatory'] == 'RFO-RC20'
     assert record['observer'] == 'G. Loyer'
 
