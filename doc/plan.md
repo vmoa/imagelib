@@ -304,3 +304,90 @@ Step 5 should show a single line beginning with `command="internal-sftp"` follow
 ### End-to-end verification
 
 Ask BJ to SFTP a test `.fits.fz` file to `asterism@imagelib.rfo.org` into `/home/nas/Eagle/Asterism/rfo/` and confirm it appears in that directory. Then wait for the next hourly cron run (or trigger `python3 fitsfiles.py` manually) and check `/tmp/fitsfiles.out` to confirm the file was ingested.
+
+---
+
+## Phase 4 — SkyX FITS Compression and S3 Archival
+
+### Background
+
+NAS disk usage audit (2026-08): `Eagle` is 400 GB of the 492 GB NAS; `SkyX` is 328 GB of that (82%) and growing — 2026 alone logged 105 GB of `.fits` data through Aug 17, annualizing to ~169 GB, more than double 2024 or 2025. Of Eagle's other four folders: `Asterism` (1 GB) already arrives pre-compressed as `.fits.fz` (Phase 3b) and needs no work; `Maxim` (538 MB, 65 DB rows) and `Processed` (436 MB, 1 DB row) are unused islands pending a team decision on deletion; `NINA` (71 GB) has FITS files tracked in the database as well as their thumb.png and png files just like in SkyX.
+
+Two strategies are being pursued for `SkyX/Images` and `NINA/Astro-Images`:
+1. **Compress existing raw `.fits`/`.fit` files to `.fits.fz` in place** (RICE, lossless for integer data) — this phase. Note that this means that `.fit` files will be renamed `fits.fz` after compression. 
+2. **Archive older years to S3**, keeping DB records intact and imagelib able to fetch on demand — design only so far, see 4c.
+
+### 4a — Compression scope 
+
+**Scope**: `db_scope.py` (ad hoc, not checked in) grouping DB rows by top-level folder under `Eagle` found 33,525 `fits` rows under `SkyX` (31,906 `.fits` + 1,619 `.fit`). Filesystem walk of `SkyX/Images` alone found 34,974 matching files (fits+fit+the one existing fits.fz) — a gap of ~1,449 against the DB row count. All files in the NINA folders were added to the database.  **the compression script should be driven by DB rows (`SELECT id, path FROM fits WHERE path LIKE '/home/nas/Eagle/SkyX/%.fits' OR path LIKE '/home/nas/Eagle/SkyX/%.fit', OR path LIKE '/home/nas/Eagle/NINA/%.fits'`), not by a filesystem walk** — every file it touches is then guaranteed to have a DB row to update.
+
+### 4b — Compression findings (sample-based, see full data in the team doc)
+
+Sampled up to 15 files per year per type, RICE-compressed via `astropy.io.fits.CompImageHDU` (same technique as `create_test_fitsz()` in `verify_fitspng_fz.py`), measured real before/after size:
+
+| Year | Current (fits+fit) | Projected | Savings |
+|---|---|---|---|
+| 2021 | 3.71 GB | 2.18 GB | 41% |
+| 2022 | 6.26 GB | 2.99 GB | 52% |
+| 2023 | 21.38 GB | 10.53 GB | 51% |
+| 2024 | 64.41 GB | 33.11 GB | 49% |
+| 2025 | 48.21 GB | 17.92 GB | 63% |
+| 2026 (YTD) | 105.35 GB | 46.82 GB | 56% |
+| **Total** | **249.32 GB** | **113.55 GB** | **~54%** |
+
+### 4c — Maintenance mode
+
+Both the SkyX migration (4d) and the NINA follow-up (4e) rewrite `path`/`preview`/`thumbnail` values and move files on disk — a request served mid-migration could hit a stale path or a 404. Both need user access blocked for their full duration, so this is a shared prerequisite, not part of either migration script itself.
+
+**Decision**: a Flask-level maintenance flag, checked in a `before_request` hook in `__init__.py`, returning a 503 with a short "under maintenance" message for all routes. Toggle via a flag file (e.g. `os.path.exists('/home/nas/data/MAINTENANCE')`) — consistent with the existing env-var-override pattern already used for `FITSDB_FILE` in `fitsdb.py`. No Apache config changes needed, and it's trivially reversible (delete the flag file, no restart required since it's checked per-request).
+
+**Needs**: write the `before_request` hook in `__init__.py` — not yet done. Do this before either migration script, since both depend on it.
+
+### 4d — Migration script design (SkyX and NINA: compression + reorganization)
+
+Precedent to build from: `rename_calibrated_test.py` already does the DB-row-lookup + `os.rename` + `UPDATE fits SET path` pattern (for already-compressed Asterism files) with a `--dry-run` flag; `_maybe_organize()` (Phase 3g) already builds a `YYYY/MM/DD` destination from a FITS date and creates it with `os.makedirs(..., exist_ok=True)`. This script combines both patterns — since the migration already touches every row's `path` to add compression, doing the folder reorganization in the same pass avoids touching each row (and each file) twice. NOTE: we just deleted the rename_calibrated_test.py unstaged file from the repo, so it is not present and probably not recoverable.
+
+Suggested flow per row:
+
+1. Query candidate rows per 4a (DB-driven, not filesystem walk). Skip rows whose file is missing on disk (log, don't crash — see the 1,449-row gap above, there may be more surprises).
+2. (no longer needed)
+3. Open with `astropy.io.fits`, write a RICE-compressed `CompImageHDU` to a temp file (pattern: `verify_fitspng_fz.create_test_fitsz`), then **re-open the temp file and verify the decompressed data matches the original** (`np.array_equal`) before touching anything on disk permanently — do not delete the original on faith.
+4. Compute the destination `YYYY/MM/DD` directory from the DB **`date` column** (see "Date source" below), creating it if needed.
+5. Move the compressed temp file into that destination as `<stem>.fits.fz`, and move the existing `.png`/`-thumb.png` alongside it into the same destination (same stem, per `fits2png()`'s naming convention) — all three files for a capture land together in one move.
+6. `UPDATE fits SET path = ?, preview = ?, thumbnail = ? WHERE id = ?` (three columns now, not just `path`), commit, *then* delete the original raw file. Keep file-op and DB-op ordering such that a crash mid-run leaves either "nothing changed" or "both changed," never "DB updated but files not moved" or vice versa.
+7. Default to `--dry-run` (matches `rename_calibrated_test.py` convention). Log every action to a file — this will run over ~33K rows and needs to be auditable/resumable, not just console output.
+8. Pilot on 2021 (smallest year, 491 fits + 1 fit) before scaling to 2024–2026 which hold the bulk of the data.
+9. Requires the maintenance-mode flag (4c) active for the entire run.
+
+No `compressed` DB column needed — same as Phase 3b, compression state is inferred from the `path` suffix.
+
+**Date source**: use the DB **`date` column**, not the date currently embedded in the existing `SkyX/Images/YYYY-MM-DD/` folder name. These differ — e.g. the Tycho 1371 example (`id=1`) has folder date `2023-04-20` but DB `date` `2023-04-21`. This is systematic for RFO's evening sessions, not an occasional edge case: Pacific-time evenings are already the next UTC day almost immediately after sunset, and `date` is derived from `DATE-OBS` (UTC). Using the DB column matches what `markup.py` already groups the UI by, and matches the Asterism Phase 3g precedent (`_maybe_organize()` also derives from `DATE-OBS`). This will shift most files' folder placement by one day relative to their current folder name — expected and desired, since it brings physical storage in line with what the app already shows.
+
+**Refactor opportunity**: extract the `YYYY/MM/DD` path-building logic out of `_maybe_organize()` into a shared helper (e.g. `year_month_day_path(date_str, base_dir)`) usable by both this script and the NINA follow-up (4e), rather than duplicating it.
+
+### 4e — NINA/Astro-Images reorganization (separate follow-up)
+
+**Scope**: `NINA/Astro-Images` currently has no subfolder structure at all — all 1,181 `.fits` files plus their 1,926 preview/thumbnail `.png` files sit flat in one directory (see `doc/nina_astro_images_preliminary.md`). Reorganize into the same `YYYY/MM/DD` structure as SkyX (4d) and Asterism (Phase 3g), using the DB `date` column as the source of truth — confirmed by the M 42 test insert during the recent DB-registration backfill, which showed the same local-filename-vs-UTC-`date` offset (`2025-12-17` in the filename, `2025-12-18` as the stored `date`).
+
+**Update (Roger feedback, Aug 2026)**: Roger confirmed that NINA will stop delivering new files to this folder going forward. Agreed approach: **leave DB-tracked files in place for now** — don't delete or move any of the 1,181 already-ingested captures ahead of schedule — and defer their actual move into `YYYY/MM/DD` to this migration (4e) when it runs. 
+
+**Decision**: run the full reorganization as its own migration, in its own maintenance window, separate from the SkyX compression+reorg pass (4d). SkyX is the larger, higher-stakes migration (33,525+ rows, plus the compression step); keeping NINA's simpler reorg-only pass (1,181 rows, no compression because it was already done) independent means each can be scheduled, tested, and rolled back on its own.
+
+No compression involved here — straight file-move + DB path update, reusing the shared `YYYY/MM/DD` helper from 4d:
+1. Query all `fits` rows where `path LIKE '/home/nas/Eagle/NINA/Astro-Images/%'`.
+2. Compute destination `YYYY/MM/DD` from the DB `date` column, create the directory if needed. The files should all be moved to that structure in the `SkyX/Images` parent folder so that when the move is done, there is nothing left in the NINA folder.
+3. Move the `.fits`/`.fit` file, its `.png`, and its `-thumb.png` together to the new location (same stem, same destination folder).
+4. `UPDATE fits SET path = ?, preview = ?, thumbnail = ? WHERE id = ?`, commit.
+5. `--dry-run` default, logged, pilot on one date first.
+6. Requires the maintenance-mode flag (4c) active for the duration.
+
+### 4f — S3 archival (design only, not started)
+
+Disk space goal on 500GB attached storage for this instance is to stay below 80% of capacity. The files are all in /home/nas/Eagle/Asterism or /home/nas/Eagle/SkyX — these are almost certainly where an S3-fallback branch needs to go for archived files. Current thinking (from the team discussion, not yet validated against the actual route code):
+
+- Keep `.png`/`-thumb.png` local always (small, needed for instant UI browsing).
+- Move (ideally already-compressed) `.fits.fz` files to S3.
+- Add nullable columns rather than overload `path` — following the exact pattern `fitsdb.py`'s `update:imagetype` and `update:orgproject` migrations already use (interactive confirm, `ALTER TABLE ADD COLUMN`, back up first): something like `fitsdb.py update:storage` adding `storage_backend TEXT DEFAULT 'local'` and `s3_key TEXT`.
+- `/fits/<path>` (and wherever `zipit()`/download logic reads the file) branches on `storage_backend`: local read, or S3 `GetObject`/presigned URL for archived rows.
+
+Needs: read the actual paths and `zipit()` code before finalizing this — the sketch above is a starting hypothesis, not a spec.
