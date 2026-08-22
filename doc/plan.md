@@ -378,7 +378,7 @@ Flow mirrors 4d (compression + file move + DB update + original delete) with the
 - No `--year` filter needed (1,181 rows; run all in one window)
 - `--pilot-date YYYY-MM-DD` flag: process only rows where `date = ?`, for a single-date dry-run on production before committing to the full migration
 
-Run in its own maintenance window after 4d is complete and verified. When this migration finishes, `NINA/Astro-Images` should be empty (or contain only files with no DB row — log those at WARNING).
+Run in its own maintenance window after 4d is complete and verified. When this migration finishes, `NINA/Astro-Images` should be empty of DB-tracked files (log any files with no DB row at WARNING). The NINA folder itself is left in place — imagelib simply stops processing it.
 
 ### 4f — S3 archival
 
