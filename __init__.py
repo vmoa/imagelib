@@ -41,6 +41,14 @@ import markup
 markup = markup.Markup()
 
 
+@app.before_request
+def check_maintenance():
+    flag = os.environ.get('IMAGELIB_MAINTENANCE', '/home/nas/data/MAINTENANCE')
+    if os.path.exists(flag):
+        return flask.Response('Under maintenance — please try again shortly.',
+                              status=503, mimetype='text/plain')
+
+
 #
 # Register URL callbacks
 #

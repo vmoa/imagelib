@@ -170,6 +170,35 @@ def test_eagle_path_serves_file(client):
 
 
 # ---------------------------------------------------------------------------
+# Maintenance mode (4c)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize('method,path,data', [
+    ('GET',  '/',                   None),
+    ('GET',  '/search?target=M+51', None),
+    ('POST', '/download',           {'recids': '1'}),
+    ('GET',  '/deets?recid=1',      None),
+    ('GET',  '/fits/nope.fits',     None),
+    ('GET',  '/Eagle/nope.fits',    None),
+])
+def test_maintenance_mode_returns_503(client, tmp_path, monkeypatch, method, path, data):
+    flag = str(tmp_path / 'MAINTENANCE')
+    monkeypatch.setenv('IMAGELIB_MAINTENANCE', flag)
+    open(flag, 'w').close()
+    r = client.get(path) if method == 'GET' else client.post(path, data=data)
+    assert r.status_code == 503
+    assert b'maintenance' in r.data.lower()
+
+
+def test_maintenance_mode_inactive_routes_work(client, tmp_path, monkeypatch):
+    flag = str(tmp_path / 'MAINTENANCE')
+    monkeypatch.setenv('IMAGELIB_MAINTENANCE', flag)
+    # flag file does not exist — maintenance mode must not activate
+    r = client.get('/')
+    assert r.status_code == 200
+
+
+# ---------------------------------------------------------------------------
 # Round-trip: ingest → query → render
 # ---------------------------------------------------------------------------
 
