@@ -17,6 +17,14 @@ from astropy.io import fits
 import catalog
 import fitsdb
 
+def date_subpath(date_str, base_dir):
+    """Build and create base_dir/YYYY/MM/DD from a YYYY-MM-DD date string."""
+    year, month, day = date_str[:10].split('-')
+    path = os.path.join(base_dir, year, month, day)
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
 class FitsFiles:
 
     if (os.path.exists('/home/nas/Eagle')):
@@ -134,9 +142,7 @@ class FitsFiles:
         parent = os.path.dirname(os.path.abspath(filename))
         if parent != os.path.abspath(self.ASTERISM_DROP):
             return filename
-        year, month, day = headers['DATE-OBS'][:10].split('-')
-        dest_dir = os.path.join(parent, year, month, day)
-        os.makedirs(dest_dir, exist_ok=True)
+        dest_dir = date_subpath(headers['DATE-OBS'], parent)
         dest = os.path.join(dest_dir, os.path.basename(filename))
         shutil.copy2(filename, dest)
         if os.path.getsize(dest) != os.path.getsize(filename):
