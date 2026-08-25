@@ -304,3 +304,160 @@ Step 5 should show a single line beginning with `command="internal-sftp"` follow
 ### End-to-end verification
 
 Ask BJ to SFTP a test `.fits.fz` file to `asterism@imagelib.rfo.org` into `/home/nas/Eagle/Asterism/rfo/` and confirm it appears in that directory. Then wait for the next hourly cron run (or trigger `python3 fitsfiles.py` manually) and check `/tmp/fitsfiles.out` to confirm the file was ingested.
+
+---
+
+## Phase 4 — SkyX/NINA Compression, Reorganization, and S3 Archival
+
+### Background
+
+NAS disk usage audit (2026-08): `Eagle` is 400 GB of the 492 GB NAS; `SkyX` is 328 GB of that (82%) and growing — 2026 alone logged 105 GB of `.fits` data through Aug 17, annualizing to ~169 GB, more than double 2024 or 2025. Of Eagle's other four folders: `Asterism` (1 GB) already arrives pre-compressed as `.fits.fz` (Phase 3b) and needs no work; `Maxim` (538 MB, 65 DB rows) and `Processed` (436 MB, 1 DB row) are unused islands pending a team decision on deletion; `NINA` (71 GB) has FITS files tracked in the database as well as their thumb.png and png files just like in SkyX.
+
+Three strategies are being pursued:
+1. **Compress existing raw `.fits`/`.fit` files to `.fits.fz` in place** (RICE, lossless) and reorganize into `YYYY/MM/DD` subfolders — 4d (SkyX) and 4e (NINA).
+2. **Move NINA/Astro-Images files into SkyX/Images** — NINA is decommissioned as a delivery folder; all RFO RC20 images go to SkyX/Images going forward, or to Asterism/rfo if processed through Asterism. The NINA migration (4e) is the last thing that touches that folder.
+3. **Archive older months to S3** when local disk exceeds 80% — 4f.
+
+### 4a — Compression scope
+
+**Scope**: `db_scope.py` (ad hoc, not checked in) grouping DB rows by top-level folder under `Eagle` found 33,525 `fits` rows under `SkyX` (31,906 `.fits` + 1,619 `.fit`). Filesystem walk of `SkyX/Images` alone found 34,974 matching files (fits+fit+the one existing fits.fz) — a gap of ~1,449 against the DB row count. All files in the NINA folders were added to the database. **The compression script must be driven by DB rows (`SELECT id, path FROM fits WHERE path LIKE '/home/nas/Eagle/SkyX/%.fits' OR path LIKE '/home/nas/Eagle/SkyX/%.fit' OR path LIKE '/home/nas/Eagle/NINA/%.fits'`), not by a filesystem walk** — every file it touches is then guaranteed to have a DB row to update.
+
+### 4b — Compression findings (sample-based, see full data in the team doc)
+
+Sampled up to 15 files per year per type, RICE-compressed via `astropy.io.fits.CompImageHDU` (same technique as `create_test_fitsz()` in `verify_fitspng_fz.py`), measured real before/after size:
+
+| Year | Current (fits+fit) | Projected | Savings |
+|---|---|---|---|
+| 2021 | 3.71 GB | 2.18 GB | 41% |
+| 2022 | 6.26 GB | 2.99 GB | 52% |
+| 2023 | 21.38 GB | 10.53 GB | 51% |
+| 2024 | 64.41 GB | 33.11 GB | 49% |
+| 2025 | 48.21 GB | 17.92 GB | 63% |
+| 2026 (YTD) | 105.35 GB | 46.82 GB | 56% |
+| **Total** | **249.32 GB** | **113.55 GB** | **~54%** |
+
+### 4c — Maintenance mode
+
+Both the SkyX migration (4d) and the NINA migration (4e) rewrite `path`/`preview`/`thumbnail` values and move files on disk — a request served mid-migration could hit a stale path or a 404. Both need user access blocked for their full duration. S3 archival (4f) has the same requirement. This is a shared prerequisite for all three.
+
+**Implementation**: a `before_request` hook in `__init__.py` that checks for a flag file and returns a 503 with a short "under maintenance" message for all routes. Flag file path: `/home/nas/data/MAINTENANCE` (consistent with the env-var-override pattern already used for `FITSDB_FILE` in `fitsdb.py`). No Apache config changes needed; trivially reversible by deleting the flag file with no restart required.
+
+**Flag file path override**: support `IMAGELIB_MAINTENANCE` env var for the flag file path so tests can use a temp path without touching `/home/nas/data/`.
+
+**This must be the first PR in phase 4** — 4d, 4e, and 4f all depend on it.
+
+### 4d — Migration script: SkyX compression + reorganization
+
+Lives at `bin/compress_migrate.py`. Kept in the repo permanently so it can be reviewed if questions arise later about what the migration did.
+
+**Shared helper**: extract `date_subpath(date_str, base_dir)` out of `fitsfiles.py`'s `_maybe_organize()` into a standalone function (in `fitsfiles.py` or a new `migrate_utils.py`) that builds `base_dir/YYYY/MM/DD` and creates it with `os.makedirs(..., exist_ok=True)`. Both `bin/compress_migrate.py` and `bin/nina_migrate.py` (4e) import this.
+
+**Flow per row**:
+
+1. Query candidate rows (DB-driven, not filesystem walk): `SELECT id, path, date, preview, thumbnail FROM fits WHERE (path LIKE '/home/nas/Eagle/SkyX/%.fits' OR path LIKE '/home/nas/Eagle/SkyX/%.fit') AND storage_backend = 'local'` (the `storage_backend` filter excludes any row already archived to S3 if 4f has run). Support `--year YYYY` to restrict to rows where `date LIKE 'YYYY-%'` — pilot 2021 before scaling.
+2. If the source file is missing on disk: log at WARNING level, increment a skip counter, continue — do not crash.
+3. Open with `astropy.io.fits` (`do_not_scale_image_data=True`), write a RICE-compressed `CompImageHDU` to a temp file in the same directory as the source (so `os.rename` is atomic within the same filesystem). Then **re-open the temp file and verify the decompressed pixel data matches the original via `np.array_equal`** — do not proceed if this fails.
+4. Compute the destination `SkyX/Images/YYYY/MM/DD/` directory from the DB `date` column using `date_subpath()`.
+5. Rename the temp `.fits.fz` file to `dest_dir/<stem>.fits.fz`. Move the existing `.png` and `-thumb.png` files alongside (same stem, same dest dir). All three moves happen before any DB write.
+6. `UPDATE fits SET path = ?, preview = ?, thumbnail = ? WHERE id = ?`, commit. Then delete the original raw `.fits`/`.fit` file. Ordering: files moved → DB updated → original deleted. A crash between steps leaves either "nothing changed" (before step 5) or "files moved + DB updated, original still present" (between 5 and original delete) — both are recoverable.
+7. Defaults to `--dry-run` (prints planned actions, makes no changes). `--apply` performs the migration. Log every action (source, dest, DB update) to a timestamped file under `/tmp/compress_migrate_<timestamp>.log`.
+8. Prints a summary on exit: processed, skipped (missing), failed (data mismatch or move error).
+9. Requires the maintenance flag file to exist; refuses to run without it (check at startup, not per-row).
+
+**Date source**: DB `date` column (UTC, from `DATE-OBS`), not the folder name embedded in the existing `SkyX/Images/YYYY-MM-DD/` path. The two differ systematically — Pacific evening sessions are already the next UTC day immediately after sunset. Using the DB column matches how `markup.py` groups the UI and matches the Asterism precedent (`_maybe_organize()`).
+
+No `compressed` DB column — compression state inferred from `path` suffix, same as Phase 3b.
+
+### 4e — NINA/Astro-Images migration (separate maintenance window)
+
+Lives at `bin/nina_migrate.py`. Reorg-only (no compression — NINA files are already `.fits`; they will be RICE-compressed as part of this move since they match the 4a scope query). Destination is `SkyX/Images/YYYY/MM/DD/` — NINA files are merged into the SkyX folder tree, not given their own tree, because NINA is decommissioned as a delivery folder and all future RFO RC20 images go to SkyX.
+
+Flow mirrors 4d (compression + file move + DB update + original delete) with these differences:
+- Source query: `path LIKE '/home/nas/Eagle/NINA/Astro-Images/%'`
+- Destination base: `/home/nas/Eagle/SkyX/Images/`
+- No `--year` filter needed (1,181 rows; run all in one window)
+- `--pilot-date YYYY-MM-DD` flag: process only rows where `date = ?`, for a single-date dry-run on production before committing to the full migration
+
+Run in its own maintenance window after 4d is complete and verified. When this migration finishes, `NINA/Astro-Images` should be empty of DB-tracked files (log any files with no DB row at WARNING). The NINA folder itself is left in place — imagelib simply stops processing it.
+
+### 4f — S3 archival
+
+**Trigger**: monthly review. If local disk usage exceeds 80% of capacity (`shutil.disk_usage('/home/nas').used / total > 0.80`), identify the oldest calendar month with at least one local `.fits.fz` row (across both `SkyX/Images` and `Asterism/rfo`) and archive all of that month's `.fits.fz` files to S3. Repeat until usage drops below 80% or no more eligible months remain.
+
+**S3 bucket**: `rfo-imagelib-archive` (globally unique; if taken, fall back to `vmoa-imagelib-archive`). Create in `us-west-2` (closest AWS region to RFO in northern California). No versioning needed — these are archival copies of immutable FITS files.
+
+**S3 storage class**: **S3 Standard-IA** (Infrequent Access). Millisecond retrieval (same as Standard), ~46% cheaper storage ($0.0125/GB/month vs $0.023), $0.01/GB retrieval fee. Alternative: **S3 Glacier Instant Retrieval** at $0.004/GB/month with $0.03/GB retrieval — saves more on storage but costs 3× per retrieval; use if downloads of archived files turn out to be very rare and cost optimization is a priority. Decision deferred until first archival run.
+
+**S3 key structure**: strip `/home/nas/Eagle/` prefix and use the remainder as the S3 key. Example: `/home/nas/Eagle/SkyX/Images/2021/01/15/NGC891_300s.fits.fz` → `SkyX/Images/2021/01/15/NGC891_300s.fits.fz`. Preserves the folder structure, makes it auditable in the S3 console.
+
+**IAM authentication**: IAM instance role (preferred over access keys — available on all AWS account tiers including non-profit). To check if the EC2 instance already has a role: `curl -s http://169.254.169.254/latest/meta-data/iam/info` — if it returns a JSON object with a `InstanceProfileArn`, a role is attached; if it returns a 404, one must be created and attached via the EC2 console (Actions → Security → Modify IAM role). The role needs one policy: `s3:PutObject`, `s3:GetObject`, `s3:ListBucket` on the `rfo-imagelib-archive` bucket ARN.
+
+**Database schema**: add two nullable columns to `fits` via `fitsdb.py update:storage`:
+- `storage_backend TEXT DEFAULT 'local'` — `'local'` or `'s3'`
+- `s3_key TEXT` — the S3 object key (NULL for local rows)
+
+**What gets archived**: `.fits.fz` files only. `.png` and `-thumb.png` files stay local always — they are small and needed for instant UI browsing.
+
+**What stays local after archival**: the row in `fits` (unchanged except `storage_backend` and `s3_key`), and the `.png`/`-thumb.png` previews.
+
+**Download behavior for archived files**: imagelib proxies the S3 stream — the user sees no difference. `zipit()` and `/fits/<path>` check `storage_backend`; if `'s3'`, call `boto3.client('s3').get_object(Bucket=..., Key=row['s3_key'])` and stream the response body directly into the ZIP or HTTP response. No local caching — always stream fresh from S3. EC2 bandwidth is not a constraint for this application.
+
+**Archival script**: `bin/s3_archive.py`. Arguments: `--dry-run` (default), `--apply`. Logs to `/tmp/s3_archive_<timestamp>.log`. Requires the maintenance flag at startup (same as 4d/4e). Flow:
+1. Check disk usage; exit with "below threshold" message if under 80%.
+2. Find oldest calendar month with eligible local rows (both `SkyX` and `Asterism` paths, `storage_backend = 'local'`).
+3. For each row in that month: upload `.fits.fz` to S3 with `StorageClass='STANDARD_IA'`, then `UPDATE fits SET storage_backend = 's3', s3_key = ? WHERE id = ?`, commit, then delete the local file.
+4. Re-check disk usage; repeat for next-oldest month if still over 80%.
+
+---
+
+## Phase 4 — Tests
+
+### 4c — Maintenance mode (`tests/test_routes.py`)
+
+- `test_maintenance_mode_returns_503_all_routes` — parametrize over all six routes; create the flag file (using `IMAGELIB_MAINTENANCE` env override), verify every route returns 503.
+- `test_maintenance_mode_inactive_routes_work` — no flag file present; verify the home route returns 200.
+
+### 4d/4e — Migration helpers (`tests/test_migrate.py`, new file)
+
+**`date_subpath()` helper**:
+- `test_date_subpath_builds_correct_path` — `date_subpath('2021-01-15', '/base')` returns `/base/2021/01/15`.
+- `test_date_subpath_creates_directory` — directory is created on disk.
+
+**Compression and data verification**:
+- `test_compress_fits_produces_valid_fitsz` — compress a synthetic `.fits` file (from `conftest.make_fits_file`), reopen the output, verify `np.array_equal(original_data, decompressed_data)`.
+- `test_compress_data_verification_rejects_mismatch` — write a corrupt temp file (wrong pixel values), verify the verification step raises an exception rather than proceeding.
+
+**`bin/compress_migrate.py` behavior** (subprocess or direct function call):
+- `test_dry_run_makes_no_disk_changes` — with `--dry-run`, source file still exists, no `.fits.fz` created, no DB changes.
+- `test_year_filter_restricts_rows` — seed rows for 2021 and 2022; `--year 2021 --dry-run` logs only 2021 rows.
+- `test_skips_missing_file_without_crash` — seed a DB row whose file does not exist; script logs a WARNING and increments skip count without raising.
+- `test_moves_preview_and_thumb_with_fits` — after apply, `.png` and `-thumb.png` appear in the destination alongside the `.fits.fz`.
+- `test_db_updated_before_original_deleted` — mock `os.unlink`; assert DB row has new path before the mock is called.
+- `test_original_deleted_after_db_commit` — after apply, source `.fits`/`.fit` file is gone.
+- `test_refuses_to_run_without_maintenance_flag` — no flag file; script exits non-zero with an error message.
+
+**`bin/nina_migrate.py` behavior**:
+- `test_nina_files_move_to_skyx_images` — source path under `NINA/Astro-Images/`, destination under `SkyX/Images/YYYY/MM/DD/`.
+- `test_pilot_date_filter` — `--pilot-date 2025-12-18` processes only that date's rows.
+
+### 4f — S3 archival (`tests/test_s3_archive.py`, new file)
+
+Uses `moto` to mock AWS (add `moto[s3]` to `requirements-dev.txt`).
+
+**Disk usage trigger**:
+- `test_no_archival_when_under_threshold` — mock disk usage at 75%; script exits without touching S3.
+- `test_archival_triggered_when_over_threshold` — mock disk usage at 85%; archival proceeds.
+- `test_oldest_month_selected_across_skyx_and_asterism` — seed rows in two months under two source paths; verify the script selects the globally oldest month, not per-folder oldest.
+
+**Upload and DB update**:
+- `test_s3_upload_uses_correct_key` — verify `put_object` is called with key matching `SkyX/Images/YYYY/MM/DD/filename.fits.fz`.
+- `test_s3_upload_uses_standard_ia_storage_class` — verify `StorageClass='STANDARD_IA'` in the `put_object` call.
+- `test_db_updated_to_s3_after_upload` — after apply, row has `storage_backend = 's3'` and `s3_key` set.
+- `test_local_file_deleted_after_db_commit` — mock DB commit; verify `os.unlink` is called only after commit.
+
+**Download proxy**:
+- `test_zipit_proxies_s3_file` — seed an archived row (mock `get_object` returning known bytes); call `zipit()`; verify ZIP contains those bytes under the expected filename.
+- `test_fits_route_proxies_s3_file` — GET `/fits/<path>` for an archived row; verify response body matches mock S3 content.
+
+**`fitsdb.py update:storage` migration**:
+- `test_update_storage_adds_columns` — run migration against an in-memory DB, verify `storage_backend` and `s3_key` columns exist with correct defaults.
