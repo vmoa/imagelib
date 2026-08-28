@@ -143,7 +143,6 @@ def migrate_row(row, dest_base, con, dry_run, log):
 
 
 def main():
-    os.umask(0o022)  # ensure created files are group/world-readable (rw-r--r--)
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--year', metavar='YYYY',
                    help='restrict to rows where date starts with YYYY (e.g. 2021 for pilot)')

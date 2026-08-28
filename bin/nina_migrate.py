@@ -105,7 +105,6 @@ def move_row(row, dest_base, con, dry_run, log):
 
 
 def main():
-    os.umask(0o022)  # ensure created files are group/world-readable (rw-r--r--)
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--pilot-date', metavar='YYYY-MM-DD',
                    help='restrict to rows where date = YYYY-MM-DD (single-date trial run)')
