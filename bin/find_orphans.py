@@ -43,7 +43,7 @@ def main():
 
     # Walk the filesystem for .fits files in YYYY-* date directories
     result = subprocess.run(
-        ['find', SKYX_BASE, '-maxdepth', '2', '-name', '*.fits',
+        ['find', SKYX_BASE, '-name', '*.fits',
          '-path', '*/{}-*/*'.format(args.year)],
         capture_output=True, text=True
     )
