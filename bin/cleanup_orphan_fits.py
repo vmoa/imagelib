@@ -3,11 +3,9 @@
 Remove duplicate .fits rows (and their sidecar PNGs) that were inserted by
 fitsfiles.py for orphan files that had already been compressed by compress_migrate.
 
-These rows exist because compress_migrate compressed the file, updated the DB path
-to .fits.fz, then failed to unlink the original .fits.  fitsfiles.py later
-re-ingested those originals, creating a second DB row per image.
-
-Targets rows with paths matching: SkyX/Images/YYYY-MM-DD/file.fits
+A row is a duplicate only if a corresponding .fits.fz row already exists in the
+DB at the new YYYY/MM/DD path.  Legitimate un-migrated rows (no .fits.fz
+counterpart in DB) are left untouched.
 
 Usage:
   sudo -u nas python3 bin/cleanup_orphan_fits.py [--year YYYY] [--apply]
@@ -17,10 +15,26 @@ Defaults to --dry-run.
 
 import argparse
 import os
+import re
 import sqlite3
 import sys
 
-PROD_DB = '/home/nas/data/fits.db'
+PROD_DB   = '/home/nas/data/fits.db'
+SKYX_BASE = '/home/nas/Eagle/SkyX/Images'
+
+# Matches SkyX/Images/YYYY-MM-DD/stem.fits  (date-directory style)
+_DATE_DIR_RE = re.compile(
+    r'^(.+/SkyX/Images/)(\d{4})-(\d{2})-(\d{2})/(.+?)\.fits?$'
+)
+
+
+def expected_fz_path(src_path):
+    """Return the expected .fits.fz path in the new YYYY/MM/DD structure, or None."""
+    m = _DATE_DIR_RE.match(src_path)
+    if not m:
+        return None
+    base, year, month, day, stem = m.groups()
+    return '{}{}/{}/{}/{}.fits.fz'.format(base, year, month, day, stem)
 
 
 def main():
@@ -39,29 +53,43 @@ def main():
     con = sqlite3.connect(db_path)
     con.row_factory = sqlite3.Row
 
-    # GLOB matches SkyX/Images/YYYY-MM-DD/file.fits (date-directory style, not YYYY/MM/DD)
-    glob = '/home/nas/Eagle/SkyX/Images/????-*/*.fits'
+    glob = '{}/????-*/*.fits'.format(SKYX_BASE)
     if args.year:
-        glob = '/home/nas/Eagle/SkyX/Images/{}-*/*.fits'.format(args.year)
+        glob = '{}/{}-%/*.fits'.format(SKYX_BASE, args.year)
 
-    rows = [dict(r) for r in con.execute(
+    candidates = [dict(r) for r in con.execute(
         "SELECT id, path, preview, thumbnail FROM fits WHERE path GLOB ?", (glob,)
     ).fetchall()]
 
-    print('{} duplicate .fits rows found{}'.format(
-        len(rows), ' (dry-run, pass --apply to delete)' if dry_run else ''))
+    # Keep only rows whose .fits.fz counterpart already exists in the DB
+    duplicates = []
+    for row in candidates:
+        fz_path = expected_fz_path(row['path'])
+        if fz_path is None:
+            continue
+        exists = con.execute(
+            "SELECT 1 FROM fits WHERE path = ?", (fz_path,)
+        ).fetchone()
+        if exists:
+            row['fz_path'] = fz_path
+            duplicates.append(row)
+
+    print('{} candidate rows, {} confirmed duplicates{}'.format(
+        len(candidates), len(duplicates),
+        ' (dry-run, pass --apply to delete)' if dry_run else ''))
 
     deleted_files = 0
     deleted_rows = 0
     errors = 0
 
-    for row in rows:
+    for row in duplicates:
         row_id  = row['id']
         path    = row['path']
         preview = row['preview']
         thumb   = row['thumbnail']
 
-        print('  id={:6d}  {}'.format(row_id, path))
+        print('  id={:6d}  {}\n{:>11}  → {}'.format(
+            row_id, path, '', row['fz_path']))
 
         if dry_run:
             continue
