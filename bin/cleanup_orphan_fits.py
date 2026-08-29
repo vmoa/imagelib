@@ -15,26 +15,32 @@ Defaults to --dry-run.
 
 import argparse
 import os
-import re
 import sqlite3
 import sys
 
 PROD_DB   = '/home/nas/data/fits.db'
 SKYX_BASE = '/home/nas/Eagle/SkyX/Images'
 
-# Matches SkyX/Images/YYYY-MM-DD/stem.fits  (date-directory style)
-_DATE_DIR_RE = re.compile(
-    r'^(.+/SkyX/Images/)(\d{4})-(\d{2})-(\d{2})/(.+?)\.fits?$'
-)
+def expected_fz_path(row):
+    """Return the expected .fits.fz path using the DB date field (DATE-OBS, UTC).
 
-
-def expected_fz_path(src_path):
-    """Return the expected .fits.fz path in the new YYYY/MM/DD structure, or None."""
-    m = _DATE_DIR_RE.match(src_path)
-    if not m:
+    Uses row['date'] (YYYY-MM-DD from the FITS header) rather than parsing the
+    date from the directory name, because observations after local midnight have
+    a UTC date one day ahead of the folder name.
+    """
+    src_path = row['path']
+    date_str = row.get('date', '')
+    if not date_str or len(date_str) < 10:
         return None
-    base, year, month, day, stem = m.groups()
-    return '{}{}/{}/{}/{}.fits.fz'.format(base, year, month, day, stem)
+    year, month, day = date_str[:10].split('-')
+    basename = os.path.basename(src_path)
+    if basename.endswith('.fits'):
+        stem = basename[:-5]
+    elif basename.endswith('.fit'):
+        stem = basename[:-4]
+    else:
+        return None
+    return '{}/{}/{}/{}/{}.fits.fz'.format(SKYX_BASE, year, month, day, stem)
 
 
 def main():
@@ -71,7 +77,7 @@ def main():
     candidates = []
     for glob in globs:
         for r in con.execute(
-            "SELECT id, path, preview, thumbnail FROM fits WHERE path GLOB ?", (glob,)
+            "SELECT id, path, date, preview, thumbnail FROM fits WHERE path GLOB ?", (glob,)
         ).fetchall():
             if r['id'] not in seen:
                 seen.add(r['id'])
@@ -80,7 +86,7 @@ def main():
     # Keep only rows whose .fits.fz counterpart already exists in the DB
     duplicates = []
     for row in candidates:
-        fz_path = expected_fz_path(row['path'])
+        fz_path = expected_fz_path(row)
         if fz_path is None:
             continue
         exists = con.execute(
