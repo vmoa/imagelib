@@ -59,29 +59,18 @@ def main():
     con = sqlite3.connect(db_path)
     con.row_factory = sqlite3.Row
 
-    # GLOB: * is wildcard, % is literal — use * throughout.
-    # Two patterns cover both flat (YYYY-MM-DD/*.fits) and nested
-    # (YYYY-MM-DD/YYYY-MM-DD/*.fits) date-directory structures.
-    globs = [
-        '{}/????-*/*.fits'.format(SKYX_BASE),
-        '{}/????-*/????-*/*.fits'.format(SKYX_BASE),
-    ]
+    # Find all .fits rows under SkyX/Images that are NOT already in the clean
+    # YYYY/MM/DD structure (4-digit/2-digit/2-digit). This catches date-directory
+    # folders of any name: YYYY-MM-DD, space-prefixed, Darks_YYYY-MM-DD, nested, etc.
+    sql = """
+        SELECT id, path, date, preview, thumbnail FROM fits
+        WHERE path LIKE '{base}/%.fits'
+          AND path NOT GLOB '{base}/[0-9][0-9][0-9][0-9]/[0-9][0-9]/[0-9][0-9]/*'
+    """.format(base=SKYX_BASE)
     if args.year:
-        globs = [
-            '{}/{}-*/*.fits'.format(SKYX_BASE, args.year),
-            '{}/{}-*/????-*/*.fits'.format(SKYX_BASE, args.year),
-            '{}/????-*/{}-*/*.fits'.format(SKYX_BASE, args.year),
-        ]
+        sql += " AND date LIKE '{}-%'".format(args.year)
 
-    seen = set()
-    candidates = []
-    for glob in globs:
-        for r in con.execute(
-            "SELECT id, path, date, preview, thumbnail FROM fits WHERE path GLOB ?", (glob,)
-        ).fetchall():
-            if r['id'] not in seen:
-                seen.add(r['id'])
-                candidates.append(dict(r))
+    candidates = [dict(r) for r in con.execute(sql).fetchall()]
 
     # Keep only rows whose .fits.fz counterpart already exists in the DB
     duplicates = []
