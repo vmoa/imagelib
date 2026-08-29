@@ -32,7 +32,8 @@ def main():
     con = sqlite3.connect(db_path)
 
     # Load all DB paths for date-directory files in this year into a set
-    pattern = '{}/{}-*/%'.format(SKYX_BASE, args.year)
+    # SQLite LIKE uses % not * as wildcard
+    pattern = '{}/{}-%/%'.format(SKYX_BASE, args.year)
     known = set(
         row[0] for row in con.execute(
             "SELECT path FROM fits WHERE path LIKE ?", (pattern,)
