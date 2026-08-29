@@ -53,13 +53,29 @@ def main():
     con = sqlite3.connect(db_path)
     con.row_factory = sqlite3.Row
 
-    glob = '{}/????-*/*.fits'.format(SKYX_BASE)
+    # GLOB: * is wildcard, % is literal — use * throughout.
+    # Two patterns cover both flat (YYYY-MM-DD/*.fits) and nested
+    # (YYYY-MM-DD/YYYY-MM-DD/*.fits) date-directory structures.
+    globs = [
+        '{}/????-*/*.fits'.format(SKYX_BASE),
+        '{}/????-*/????-*/*.fits'.format(SKYX_BASE),
+    ]
     if args.year:
-        glob = '{}/{}-%/*.fits'.format(SKYX_BASE, args.year)
+        globs = [
+            '{}/{}-*/*.fits'.format(SKYX_BASE, args.year),
+            '{}/{}-*/????-*/*.fits'.format(SKYX_BASE, args.year),
+            '{}/????-*/{}-*/*.fits'.format(SKYX_BASE, args.year),
+        ]
 
-    candidates = [dict(r) for r in con.execute(
-        "SELECT id, path, preview, thumbnail FROM fits WHERE path GLOB ?", (glob,)
-    ).fetchall()]
+    seen = set()
+    candidates = []
+    for glob in globs:
+        for r in con.execute(
+            "SELECT id, path, preview, thumbnail FROM fits WHERE path GLOB ?", (glob,)
+        ).fetchall():
+            if r['id'] not in seen:
+                seen.add(r['id'])
+                candidates.append(dict(r))
 
     # Keep only rows whose .fits.fz counterpart already exists in the DB
     duplicates = []
