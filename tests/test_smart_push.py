@@ -293,3 +293,61 @@ def test_new_file_is_sent_and_recorded(manifest, fits_file, tmp_path):
     )
     manifest.commit()
     assert sp.is_known(manifest, date_obs)
+
+
+# ---------------------------------------------------------------------------
+# cleanup_cal_dirs
+# ---------------------------------------------------------------------------
+
+def test_cleanup_removes_closed_loop_slews(tmp_path):
+    r_drive = str(tmp_path / 'rdrive')
+    cal_dir = os.path.join(r_drive, 'Closed Loop Slews')
+    os.makedirs(cal_dir)
+    open(os.path.join(cal_dir, 'slew.fits'), 'w').close()
+
+    import logging
+    log = logging.getLogger('test')
+    removed, errors = sp.cleanup_cal_dirs(r_drive, log, dry_run=False)
+
+    assert removed == 1
+    assert errors == 0
+    assert not os.path.exists(cal_dir)
+
+
+def test_cleanup_removes_automated_pointing_run(tmp_path):
+    r_drive = str(tmp_path / 'rdrive')
+    cal_dir = os.path.join(r_drive, 'Automated Pointing Run 2024-06-01')
+    os.makedirs(cal_dir)
+
+    import logging
+    log = logging.getLogger('test')
+    removed, errors = sp.cleanup_cal_dirs(r_drive, log, dry_run=False)
+
+    assert removed == 1
+    assert not os.path.exists(cal_dir)
+
+
+def test_cleanup_dry_run_does_not_delete(tmp_path):
+    r_drive = str(tmp_path / 'rdrive')
+    cal_dir = os.path.join(r_drive, 'Closed Loop Slews')
+    os.makedirs(cal_dir)
+
+    import logging
+    log = logging.getLogger('test')
+    removed, errors = sp.cleanup_cal_dirs(r_drive, log, dry_run=True)
+
+    assert removed == 0
+    assert os.path.exists(cal_dir)
+
+
+def test_cleanup_leaves_normal_date_dirs(tmp_path):
+    r_drive = str(tmp_path / 'rdrive')
+    normal_dir = os.path.join(r_drive, '2024-06-01')
+    os.makedirs(normal_dir)
+
+    import logging
+    log = logging.getLogger('test')
+    removed, errors = sp.cleanup_cal_dirs(r_drive, log, dry_run=False)
+
+    assert removed == 0
+    assert os.path.exists(normal_dir)

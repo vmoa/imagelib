@@ -26,12 +26,12 @@ sync_to_aws did three things (all now disabled): purge calibration dirs from R_D
 flowchart LR
     PC["Eagle PC (SkyX)"] -- "writes FITS" --> RD["R_Drive"]
     RD -- "mounted" --> RFOVPN["rfovpn"]
-    RFOVPN -- "smart_push.py hourly :30" --> IMG["imagelib (EC2)"]
-    RFOVPN -- "cleanup_rfo_dirs.py daily 06:00" --> RD
+    RFOVPN -- "smart_push.py: purge cal dirs" --> RD
+    RFOVPN -- "smart_push.py: rsync new files hourly :30" --> IMG["imagelib (EC2)"]
     IMG -- "fitsfiles.py hourly :00" --> DB[("fits.db")]
 ```
 
-smart_push.py uses DATE-OBS as a unique key — safe to re-run, handles .fits, .fit, and .fits.fz identically. The SSH trigger is eliminated; fitsfiles.py runs on its own hourly cron.
+smart_push.py runs as a single hourly job: it first purges calibration dirs from R_Drive, then scans for new files. This matches the ordering in sync_to_aws (purge before rsync). The SSH trigger is eliminated; fitsfiles.py runs on its own hourly cron.
 
 ---
 
@@ -179,18 +179,15 @@ one eliminated step:
 
 | sync_to_aws function | Replacement |
 |---|---|
-| Purge calibration dirs from R_Drive | `bin/cleanup_rfo_dirs.py` (daily cron) |
-| Sync FITS files to imagelib | `bin/smart_push.py` (hourly cron) |
+| Purge calibration dirs from R_Drive | `bin/smart_push.py` step 1 (before each scan) |
+| Sync FITS files to imagelib | `bin/smart_push.py` step 2 (manifest-driven rsync) |
 | SSH trigger for fitsfiles.py | **Eliminated** — fitsfiles.py runs on its own hourly cron on imagelib |
 
 ### rfovpn crontab (proposed)
 
 ```cron
-# Sync new SkyX FITS files to imagelib (replaces sync_to_aws rsync + trigger)
+# Sync new SkyX FITS files to imagelib — also purges cal dirs before each scan
 30 * * * * SMART_PUSH_HOST=nas@54.148.172.109 python3 /usr/local/bin/smart_push.py --apply >> /tmp/smart_push.out 2>&1
-
-# Purge SkyX calibration artifact directories from R_Drive (replaces sync_to_aws purge)
-0 6 * * * python3 /usr/local/bin/cleanup_rfo_dirs.py --apply >> /tmp/cleanup_rfo.out 2>&1
 ```
 
 ### smart_push.py — why rsync was wrong
@@ -250,7 +247,13 @@ is silently ignored).
 ```
 record start_time
 
-candidates = find(R_DRIVE, newer_than=tsfile, names=['*.fits','*.fit','*.fits.fz'])
+# step 1: purge calibration dirs before scanning
+for each dir in R_DRIVE matching Closed Loop Slews or Automated Pointing Run*:
+    rmtree(dir)   [errors counted; run continues]
+
+# step 2: find candidates added since last successful run
+candidates = find(R_DRIVE, newer_than=tsfile, names=['*.fits','*.fit','*.fits.fz'],
+                  exclude_dirs=SKIP_DIR_PATTERNS)  ← safety net in case step 1 missed one
 
 for each candidate:
     date_obs = astropy.fits.open(candidate) → DATE-OBS header
@@ -263,17 +266,18 @@ for each candidate:
     if rsync exit 0:
         INSERT INTO sent (date_obs, r_drive_path, sent_at)
 
-touch tsfile with start_time
+touch tsfile with start_time   [only on zero-error run]
 ```
 
-### cleanup_rfo_dirs.py — calibration artifact purge
+### smart_push.py step 1 — calibration artifact purge
 
-Walks `/nas/R_Drive/Eagle` and removes directories whose names match
-`Closed Loop Slews` or start with `Automated Pointing Run`. These are created
-by SkyX during telescope calibration and are never wanted in the imagelib archive.
-
-Runs once daily (suggested: 06:00). Defaults to dry-run; pass `--apply` to delete.
-The base directory is configurable via `CLEANUP_RFO_BASE` env var.
+Before scanning for candidates, `smart_push.py` walks `R_DRIVE_BASE` and removes
+directories whose names match `Closed Loop Slews` or start with
+`Automated Pointing Run`. These are created by SkyX during telescope calibration
+and must be purged before the `find -newer` scan so their files are never picked
+up as sync candidates. This mirrors the ordering in the original `sync_to_aws`
+script (purge, then rsync). The `find` call also excludes these directory names
+as a safety net in case an `rmtree` fails mid-run.
 
 ### imagelib side — no changes required
 

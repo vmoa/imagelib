@@ -19,8 +19,8 @@ Configuration (set via environment variables):
 
 Directories excluded from sync (SkyX telescope calibration artifacts):
   "Closed Loop Slews", "Automated Pointing Run*"
-These were purged from R_Drive by the old sync_to_aws script. smart_push skips
-them during find rather than deleting them, leaving R_Drive intact.
+These are purged from R_Drive at the start of each run (before find -newer),
+mirroring sync_to_aws step 1. The find call also excludes them as a safety net.
 
 Usage:
   python3 smart_push.py [--apply]
@@ -37,6 +37,7 @@ import argparse
 import datetime
 import logging
 import os
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -137,6 +138,46 @@ def find_candidates(r_drive_base, tsfile, skip_dirs=None):
     return [p.strip() for p in result.stdout.splitlines() if p.strip()]
 
 # ---------------------------------------------------------------------------
+# Calibration directory cleanup
+# ---------------------------------------------------------------------------
+
+def cleanup_cal_dirs(r_drive_base, log, dry_run):
+    """Remove SkyX calibration artifact directories from r_drive_base.
+
+    Walks r_drive_base and removes any directory whose name matches
+    SKIP_DIR_PATTERNS (exact match or prefix). Must be called before
+    find_candidates so these files are never picked up as sync candidates.
+
+    Returns (removed, errors) counts.
+    """
+    targets = []
+    for root, dirs, _files in os.walk(r_drive_base, topdown=True):
+        matched = []
+        for d in dirs:
+            if any(d == pat or d.startswith(pat) for pat in SKIP_DIR_PATTERNS):
+                targets.append(os.path.join(root, d))
+                matched.append(d)
+        for d in matched:
+            dirs.remove(d)
+
+    removed = errors = 0
+    for path in targets:
+        if dry_run:
+            log.info('[DRY-RUN] would remove cal dir: %s', path)
+        else:
+            log.info('Removing cal dir: %s', path)
+            try:
+                shutil.rmtree(path)
+                removed += 1
+            except Exception as exc:
+                log.error('Failed to remove %s: %s', path, exc)
+                errors += 1
+
+    if targets:
+        log.info('Cal dir cleanup: found=%d removed=%d errors=%d', len(targets), removed, errors)
+    return removed, errors
+
+# ---------------------------------------------------------------------------
 # Transfer
 # ---------------------------------------------------------------------------
 
@@ -221,10 +262,15 @@ def main():
     if not dry_run:
         log.info('Log: %s', log_path)
 
+    sent = skipped = errors = 0
+
+    # Step 1: purge calibration dirs before scanning — mirrors sync_to_aws step 1,
+    # ensuring cal dir files are never returned as candidates by find_candidates.
+    _removed, _errs = cleanup_cal_dirs(R_DRIVE_BASE, log, dry_run)
+    errors += _errs
+
     candidates = find_candidates(R_DRIVE_BASE, TSFILE)
     log.info('Candidates (newer than tsfile): %d', len(candidates))
-
-    sent = skipped = errors = 0
     for path in candidates:
         date_obs = read_date_obs(path)
         if date_obs is None:
