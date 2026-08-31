@@ -6,6 +6,35 @@ replacing the legacy rsync.
 
 ---
 
+## Flow Diagrams
+
+### Current State — sync_to_aws disabled
+
+```mermaid
+flowchart LR
+    PC["Eagle PC (SkyX)"] -- "writes FITS" --> RD["R_Drive"]
+    RD -- "mounted" --> RFOVPN["rfovpn"]
+    RFOVPN -. "sync_to_aws — DISABLED" .-> IMG["imagelib (EC2)"]
+    IMG -- "fitsfiles.py hourly :00" --> DB[("fits.db")]
+```
+
+sync_to_aws did three things (all now disabled): purge calibration dirs from R_Drive, rsync the entire Eagle/ tree (~50k files), and SSH-trigger fitsfiles.py. It was disabled after step 2 re-pushed all historical files following the YYYY/MM/DD directory reorganization.
+
+### Proposed State — two focused scripts
+
+```mermaid
+flowchart LR
+    PC["Eagle PC (SkyX)"] -- "writes FITS" --> RD["R_Drive"]
+    RD -- "mounted" --> RFOVPN["rfovpn"]
+    RFOVPN -- "smart_push.py hourly :30" --> IMG["imagelib (EC2)"]
+    RFOVPN -- "cleanup_rfo_dirs.py daily 06:00" --> RD
+    IMG -- "fitsfiles.py hourly :00" --> DB[("fits.db")]
+```
+
+smart_push.py uses DATE-OBS as a unique key — safe to re-run, handles .fits, .fit, and .fits.fz identically. The SSH trigger is eliminated; fitsfiles.py runs on its own hourly cron.
+
+---
+
 ## System Components
 
 | Component | Location | Role |
