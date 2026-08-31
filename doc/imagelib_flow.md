@@ -30,9 +30,14 @@ replacing the legacy rsync.
 
 **R_Drive (observatory, source of truth):**
 ```
-/nas/R_Drive/SkyX/Images/
-    YYYY-MM-DD/          ← SkyX assigns date from local clock
-        filename.fits
+/nas/R_Drive/Eagle/
+    SkyX/Images/
+        YYYY-MM-DD/      ← SkyX assigns date from local observatory clock
+            filename.fits
+        Closed Loop Slews/          ← calibration artifact, purged by cleanup_rfo_dirs.py
+        Automated Pointing Run .../  ← calibration artifact, purged by cleanup_rfo_dirs.py
+    NINA/
+    Asterism/
 ```
 
 **imagelib (AWS, permanent store):**
@@ -59,9 +64,34 @@ SkyX names the date directory from the local observatory clock (Pacific time).
 
 ### 2. Sync to imagelib — CURRENTLY DISABLED
 
-The legacy `sync_to_aws` rsync on rfovpn has been commented out because it
+The legacy `sync_to_aws` script on rfovpn has been commented out because it
 re-pushed the entire historical archive after the YYYY/MM/DD reorganization.
 No automated sync is running. Files only reach imagelib if pushed manually.
+
+**What `sync_to_aws` did (three functions, one script):**
+
+```bash
+nas=/nas/R_Drive/Eagle
+aws=54.148.172.109
+
+# 1. Purge: delete SkyX calibration artifact directories from R_Drive
+find $nas \( -name 'Closed Loop Slews' -o -name 'Automated Pointing Run*' \) \
+     -type d -print0 | xargs -0 rm -rfv
+
+# 2. Sync: rsync the entire Eagle directory tree to imagelib (all sources, unfiltered)
+rsync -av $nas nas@$aws:
+
+# 3. Trigger: SSH to imagelib and run fitsfiles.py immediately after sync
+ssh $aws '(date; cd /home/nas/flask/imagelib; python3 ./fitsfiles.py) \
+          >> /tmp/fitsfiles.out 2>&1'
+```
+
+Problems with this design:
+- **Sync** had no knowledge of what imagelib had already ingested, so it re-pushed
+  all ~50,000 historical files after the YYYY/MM/DD reorganization
+- **Sync** mirrored the `YYYY-MM-DD` directory structure; imagelib now expects
+  `YYYY/MM/DD` with RICE compression — rsync cannot bridge this structural difference
+- **Trigger** is redundant now that fitsfiles.py runs on its own hourly cron
 
 ### 3. Ingest on imagelib (`fitsfiles.py`, hourly cron)
 
@@ -113,9 +143,28 @@ recreates the directory on the next push if needed.
 
 ---
 
-## Proposed Flow — smart_push.py (replaces rsync)
+## Proposed Flow — two scripts replace sync_to_aws
 
-### Why rsync was wrong
+The three functions of `sync_to_aws` are replaced by two focused scripts and
+one eliminated step:
+
+| sync_to_aws function | Replacement |
+|---|---|
+| Purge calibration dirs from R_Drive | `bin/cleanup_rfo_dirs.py` (daily cron) |
+| Sync FITS files to imagelib | `bin/smart_push.py` (hourly cron) |
+| SSH trigger for fitsfiles.py | **Eliminated** — fitsfiles.py runs on its own hourly cron on imagelib |
+
+### rfovpn crontab (proposed)
+
+```cron
+# Sync new SkyX FITS files to imagelib (replaces sync_to_aws rsync + trigger)
+30 * * * * SMART_PUSH_HOST=nas@54.148.172.109 python3 /usr/local/bin/smart_push.py --apply >> /tmp/smart_push.out 2>&1
+
+# Purge SkyX calibration artifact directories from R_Drive (replaces sync_to_aws purge)
+0 6 * * * python3 /usr/local/bin/cleanup_rfo_dirs.py --apply >> /tmp/cleanup_rfo.out 2>&1
+```
+
+### smart_push.py — why rsync was wrong
 
 rsync mirrors directory structure. The source (R_Drive) has `YYYY-MM-DD`;
 the destination (imagelib) now uses `YYYY/MM/DD` with RICE compression. rsync
@@ -188,6 +237,15 @@ for each candidate:
 touch tsfile with start_time
 ```
 
+### cleanup_rfo_dirs.py — calibration artifact purge
+
+Walks `/nas/R_Drive/Eagle` and removes directories whose names match
+`Closed Loop Slews` or start with `Automated Pointing Run`. These are created
+by SkyX during telescope calibration and are never wanted in the imagelib archive.
+
+Runs once daily (suggested: 06:00). Defaults to dry-run; pass `--apply` to delete.
+The base directory is configurable via `CLEANUP_RFO_BASE` env var.
+
 ### imagelib side — no changes required
 
 Files arrive at imagelib in `SkyX/Images/YYYY-MM-DD/` format.
@@ -222,9 +280,11 @@ The directory structure on R_Drive (YYYY-MM-DD, local time) and on imagelib
 (YYYY/MM/DD, UTC from DATE-OBS) can differ by one day for late-night
 observations. Only the FITS header value itself is reliable across both systems.
 
-**R_Drive is never modified.**
-All compression and reorganization happens on imagelib. R_Drive remains the
-unmodified 3TB archive of raw FITS files indefinitely.
+**R_Drive science images are never modified.**
+All compression and reorganization of FITS image files happens on imagelib.
+R_Drive retains the original uncompressed archive indefinitely. The only
+writes to R_Drive are deletions of SkyX calibration artifact directories
+(`cleanup_rfo_dirs.py`), which were always discarded and are not science data.
 
 **`_maybe_compress_skyx` is idempotent.**
 If a file already exists at the destination (re-synced or retried), the incoming
