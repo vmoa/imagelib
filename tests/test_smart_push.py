@@ -176,13 +176,31 @@ def test_find_candidates_includes_all_extensions(tmp_path):
         open(os.path.join(date_dir, name), 'w').close()
 
     tsfile = str(tmp_path / 'ts')  # does not exist → no -newer filter
-    candidates = sp.find_candidates(r_drive, tsfile)
+    candidates = sp.find_candidates(r_drive, tsfile, skip_dirs=[])
     basenames = {os.path.basename(p) for p in candidates}
 
     assert 'a.fits' in basenames
     assert 'b.fit' in basenames
     assert 'c.fits.fz' in basenames
     assert 'd.txt' not in basenames
+
+
+def test_find_candidates_skips_excluded_directories(tmp_path):
+    r_drive = str(tmp_path / 'rdrive')
+    normal_dir = os.path.join(r_drive, '2024-06-01')
+    skip_dir = os.path.join(r_drive, 'Closed Loop Slews')
+    os.makedirs(normal_dir)
+    os.makedirs(skip_dir)
+
+    open(os.path.join(normal_dir, 'good.fits'), 'w').close()
+    open(os.path.join(skip_dir, 'slew.fits'), 'w').close()
+
+    tsfile = str(tmp_path / 'ts')
+    candidates = sp.find_candidates(r_drive, tsfile, skip_dirs=['Closed Loop Slews'])
+    basenames = {os.path.basename(p) for p in candidates}
+
+    assert 'good.fits' in basenames
+    assert 'slew.fits' not in basenames
 
 
 # ---------------------------------------------------------------------------

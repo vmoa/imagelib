@@ -11,11 +11,16 @@ Handles .fits, .fit, and .fits.fz files identically. When SkyX or NINA is
 reconfigured to write .fits.fz directly, no changes to this script are needed.
 
 Configuration (set via environment variables):
-  SMART_PUSH_R_DRIVE  R_Drive SkyX/Images mount path    [/nas/R_Drive/SkyX/Images]
-  SMART_PUSH_HOST     rsync destination host/user        [required -- no default]
+  SMART_PUSH_R_DRIVE  R_Drive SkyX/Images mount path    [/nas/R_Drive/Eagle/SkyX/Images]
+  SMART_PUSH_HOST     rsync destination host/user        [required -- e.g. nas@54.148.172.109]
   SMART_PUSH_DEST     SkyX/Images path on imagelib       [/home/nas/Eagle/SkyX/Images]
   SMART_PUSH_DB       manifest SQLite DB path            [/home/nas/var/smart_push/manifest.db]
   SMART_PUSH_TS       timestamp file path                [/home/nas/var/smart_push/last_run.ts]
+
+Directories excluded from sync (SkyX telescope calibration artifacts):
+  "Closed Loop Slews", "Automated Pointing Run*"
+These were purged from R_Drive by the old sync_to_aws script. smart_push skips
+them during find rather than deleting them, leaving R_Drive intact.
 
 Usage:
   python3 smart_push.py [--apply]
@@ -42,13 +47,17 @@ from astropy.io import fits
 # Configuration
 # ---------------------------------------------------------------------------
 
-R_DRIVE_BASE = os.environ.get('SMART_PUSH_R_DRIVE', '/nas/R_Drive/SkyX/Images')
+R_DRIVE_BASE = os.environ.get('SMART_PUSH_R_DRIVE', '/nas/R_Drive/Eagle/SkyX/Images')
 IMAGELIB_HOST = os.environ.get('SMART_PUSH_HOST',   '')
 IMAGELIB_DEST = os.environ.get('SMART_PUSH_DEST',   '/home/nas/Eagle/SkyX/Images')
 MANIFEST_DB   = os.environ.get('SMART_PUSH_DB',     '/home/nas/var/smart_push/manifest.db')
 TSFILE        = os.environ.get('SMART_PUSH_TS',     '/home/nas/var/smart_push/last_run.ts')
 
 FILE_PATTERNS = ['*.fits', '*.fit', '*.fits.fz']
+
+# SkyX telescope calibration directories that should never be synced.
+# The old sync_to_aws deleted these from R_Drive; smart_push skips them instead.
+SKIP_DIR_PATTERNS = ['Closed Loop Slews', 'Automated Pointing Run']
 
 # ---------------------------------------------------------------------------
 # Database
@@ -102,12 +111,19 @@ def read_date_obs(path):
 # File discovery
 # ---------------------------------------------------------------------------
 
-def find_candidates(r_drive_base, tsfile):
+def find_candidates(r_drive_base, tsfile, skip_dirs=None):
     """Return paths of FITS files under r_drive_base newer than tsfile.
 
     If tsfile does not exist, returns all FITS files (first run or recovery).
+    Directories whose names start with any entry in skip_dirs are pruned.
     """
-    cmd = ['find', r_drive_base, '-type', 'f']
+    if skip_dirs is None:
+        skip_dirs = SKIP_DIR_PATTERNS
+    cmd = ['find', r_drive_base]
+    # Prune excluded directories before descending into them
+    for pattern in skip_dirs:
+        cmd += ['-name', pattern, '-prune', '-o']
+    cmd += ['-type', 'f']
     if os.path.exists(tsfile):
         cmd += ['-newer', tsfile]
     name_args = []
@@ -116,6 +132,7 @@ def find_candidates(r_drive_base, tsfile):
             name_args.append('-o')
         name_args += ['-name', pattern]
     cmd += ['('] + name_args + [')']
+    cmd += ['-print']
     result = subprocess.run(cmd, capture_output=True, text=True)
     return [p.strip() for p in result.stdout.splitlines() if p.strip()]
 
