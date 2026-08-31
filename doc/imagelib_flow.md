@@ -196,12 +196,12 @@ as it does today. smart_push is transparent to imagelib's ingest pipeline.
 
 ### .fits.fz support (future SkyX/NINA reconfiguration)
 
-When SkyX or NINA is reconfigured to write `.fits.fz` directly to R_Drive:
-
-- Add `*.fits.fz` to the `find` patterns in smart_push.py — **no other change**.
-- astropy reads DATE-OBS from `.fits.fz` headers identically.
-- `_maybe_compress_skyx` already handles incoming `.fits.fz` files (moves them
-  to `YYYY/MM/DD/` without re-compressing, with the re-sync duplicate guard).
+smart_push.py already includes `*.fits.fz` in its `find` patterns. When
+SkyX or NINA is reconfigured to write `.fits.fz` directly to R_Drive,
+**no change to smart_push.py is required**. astropy reads DATE-OBS from
+`.fits.fz` headers identically to uncompressed files, and `_maybe_compress_skyx`
+already handles incoming `.fits.fz` files (moves them to `YYYY/MM/DD/` without
+re-compressing, with the re-sync duplicate guard).
 
 ### Failure modes and recovery
 

@@ -1,0 +1,251 @@
+#!/usr/bin/env python3
+"""
+smart_push.py -- sync new SkyX FITS files from R_Drive to imagelib.
+
+Runs on rfovpn. Uses find -newer to locate files added to R_Drive since the
+last run, reads DATE-OBS via astropy to uniquely identify each exposure, skips
+files already sent or known to be ingested on imagelib, and rsyncs new files
+to imagelib's SkyX/Images directory.
+
+Handles .fits, .fit, and .fits.fz files identically. When SkyX or NINA is
+reconfigured to write .fits.fz directly, no changes to this script are needed.
+
+Configuration (set via environment variables):
+  SMART_PUSH_R_DRIVE  R_Drive SkyX/Images mount path    [/nas/R_Drive/SkyX/Images]
+  SMART_PUSH_HOST     rsync destination host/user        [required -- no default]
+  SMART_PUSH_DEST     SkyX/Images path on imagelib       [/home/nas/Eagle/SkyX/Images]
+  SMART_PUSH_DB       manifest SQLite DB path            [/home/nas/var/smart_push/manifest.db]
+  SMART_PUSH_TS       timestamp file path                [/home/nas/var/smart_push/last_run.ts]
+
+Usage:
+  python3 smart_push.py [--apply]
+  python3 smart_push.py --bootstrap FILE
+
+Bootstrap FILE is one DATE-OBS value per line, exported from imagelib:
+  sqlite3 /home/nas/data/fits.db \\
+    "SELECT timestamp FROM fits WHERE path LIKE '%%SkyX%%'" > bootstrap.txt
+
+Requirements: rsync >= 3.2.3 (for --mkpath), astropy
+"""
+
+import argparse
+import datetime
+import logging
+import os
+import sqlite3
+import subprocess
+import sys
+
+from astropy.io import fits
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+
+R_DRIVE_BASE = os.environ.get('SMART_PUSH_R_DRIVE', '/nas/R_Drive/SkyX/Images')
+IMAGELIB_HOST = os.environ.get('SMART_PUSH_HOST',   '')
+IMAGELIB_DEST = os.environ.get('SMART_PUSH_DEST',   '/home/nas/Eagle/SkyX/Images')
+MANIFEST_DB   = os.environ.get('SMART_PUSH_DB',     '/home/nas/var/smart_push/manifest.db')
+TSFILE        = os.environ.get('SMART_PUSH_TS',     '/home/nas/var/smart_push/last_run.ts')
+
+FILE_PATTERNS = ['*.fits', '*.fit', '*.fits.fz']
+
+# ---------------------------------------------------------------------------
+# Database
+# ---------------------------------------------------------------------------
+
+def init_db(db_path):
+    """Open (or create) the manifest SQLite database."""
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    con = sqlite3.connect(db_path)
+    con.executescript("""
+        CREATE TABLE IF NOT EXISTS sent (
+            date_obs     TEXT PRIMARY KEY,
+            r_drive_path TEXT NOT NULL,
+            sent_at      TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS known_ingested (
+            date_obs TEXT PRIMARY KEY
+        );
+    """)
+    con.commit()
+    return con
+
+
+def is_known(con, date_obs):
+    """Return True if date_obs appears in sent or known_ingested."""
+    return bool(
+        con.execute('SELECT 1 FROM sent WHERE date_obs = ?', (date_obs,)).fetchone() or
+        con.execute('SELECT 1 FROM known_ingested WHERE date_obs = ?', (date_obs,)).fetchone()
+    )
+
+# ---------------------------------------------------------------------------
+# FITS header
+# ---------------------------------------------------------------------------
+
+def read_date_obs(path):
+    """Return DATE-OBS from a FITS file, or None on failure.
+
+    Handles .fits, .fit, and .fits.fz transparently. DATE-OBS may be in the
+    primary HDU header or a CompImageHDU extension header.
+    """
+    try:
+        with fits.open(path, memmap=False) as hdul:
+            for hdu in hdul:
+                if 'DATE-OBS' in hdu.header:
+                    return hdu.header['DATE-OBS']
+    except Exception as exc:
+        logging.warning('Could not read DATE-OBS from %s: %s', path, exc)
+    return None
+
+# ---------------------------------------------------------------------------
+# File discovery
+# ---------------------------------------------------------------------------
+
+def find_candidates(r_drive_base, tsfile):
+    """Return paths of FITS files under r_drive_base newer than tsfile.
+
+    If tsfile does not exist, returns all FITS files (first run or recovery).
+    """
+    cmd = ['find', r_drive_base, '-type', 'f']
+    if os.path.exists(tsfile):
+        cmd += ['-newer', tsfile]
+    name_args = []
+    for pattern in FILE_PATTERNS:
+        if name_args:
+            name_args.append('-o')
+        name_args += ['-name', pattern]
+    cmd += ['('] + name_args + [')']
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    return [p.strip() for p in result.stdout.splitlines() if p.strip()]
+
+# ---------------------------------------------------------------------------
+# Transfer
+# ---------------------------------------------------------------------------
+
+def rsync_file(src_path, r_drive_base, imagelib_host, imagelib_dest, log, dry_run):
+    """rsync one file to imagelib, preserving its relative directory structure.
+
+    Requires rsync >= 3.2.3 for --mkpath to create the destination directory.
+    """
+    rel_path = os.path.relpath(src_path, r_drive_base)
+    dest = '{}:{}/{}'.format(imagelib_host, imagelib_dest, rel_path)
+    cmd = ['rsync', '-az', '--mkpath', src_path, dest]
+    if dry_run:
+        log.info('[DRY-RUN] would rsync: %s -> %s', rel_path, dest)
+        return True
+    log.info('Sending %s -> %s', rel_path, dest)
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        log.error('rsync failed for %s: %s', rel_path, result.stderr.strip())
+        return False
+    return True
+
+# ---------------------------------------------------------------------------
+# Bootstrap
+# ---------------------------------------------------------------------------
+
+def run_bootstrap(con, date_obs_file, log):
+    """Pre-populate known_ingested from a file of DATE-OBS values (one per line)."""
+    inserted = skipped = 0
+    with open(date_obs_file) as f:
+        for line in f:
+            date_obs = line.strip()
+            if not date_obs:
+                continue
+            cur = con.execute(
+                'INSERT OR IGNORE INTO known_ingested (date_obs) VALUES (?)', (date_obs,))
+            if cur.rowcount:
+                inserted += 1
+            else:
+                skipped += 1
+    con.commit()
+    log.info('Bootstrap: %d inserted, %d already present in known_ingested', inserted, skipped)
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__,
+                                formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument('--apply', action='store_true',
+                   help='rsync files and update manifest (default: dry-run)')
+    p.add_argument('--bootstrap', metavar='FILE',
+                   help='one-time: pre-populate known_ingested from FILE of DATE-OBS values')
+    args = p.parse_args()
+    dry_run = not args.apply
+
+    ts = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+    log_path = '/tmp/smart_push_{}.log'.format(ts)
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s %(levelname)s %(message)s',
+        handlers=[
+            logging.FileHandler(log_path),
+            logging.StreamHandler(sys.stdout),
+        ],
+    )
+    log = logging.getLogger(__name__)
+
+    if not args.bootstrap and not IMAGELIB_HOST:
+        log.error('SMART_PUSH_HOST environment variable is required')
+        sys.exit(1)
+
+    con = init_db(MANIFEST_DB)
+
+    if args.bootstrap:
+        run_bootstrap(con, args.bootstrap, log)
+        con.close()
+        return
+
+    start_time = datetime.datetime.now()
+    log.info('smart_push start  dry_run=%s  r_drive=%s', dry_run, R_DRIVE_BASE)
+    if not dry_run:
+        log.info('Log: %s', log_path)
+
+    candidates = find_candidates(R_DRIVE_BASE, TSFILE)
+    log.info('Candidates (newer than tsfile): %d', len(candidates))
+
+    sent = skipped = errors = 0
+    for path in candidates:
+        date_obs = read_date_obs(path)
+        if date_obs is None:
+            log.warning('No DATE-OBS, skipping: %s', path)
+            errors += 1
+            continue
+
+        if is_known(con, date_obs):
+            log.debug('Already known (%s), skipping: %s', date_obs, path)
+            skipped += 1
+            continue
+
+        rel_path = os.path.relpath(path, R_DRIVE_BASE)
+        if rsync_file(path, R_DRIVE_BASE, IMAGELIB_HOST, IMAGELIB_DEST, log, dry_run):
+            if not dry_run:
+                con.execute(
+                    'INSERT OR IGNORE INTO sent (date_obs, r_drive_path, sent_at) VALUES (?,?,?)',
+                    (date_obs, rel_path, start_time.isoformat()),
+                )
+                con.commit()
+            sent += 1
+        else:
+            errors += 1
+
+    log.info('Done. sent=%d  skipped=%d  errors=%d', sent, skipped, errors)
+
+    # Only update tsfile on a fully clean run so a partial run retries all candidates next time
+    if not dry_run and errors == 0:
+        timestamp = start_time.strftime('%Y%m%d%H%M.%S')
+        subprocess.run(['touch', '-t', timestamp, TSFILE])
+        log.info('Updated tsfile: %s', TSFILE)
+    elif not dry_run and errors:
+        log.warning('Errors occurred -- tsfile NOT updated; all candidates re-examined next run')
+
+    con.close()
+    if errors:
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()
