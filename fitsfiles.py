@@ -11,7 +11,9 @@ import re
 import sys
 import shutil
 import subprocess   # Use subprocess for safer command execution
+import tempfile
 
+import numpy as np
 from astropy.io import fits
 
 import catalog
@@ -39,6 +41,9 @@ class FitsFiles:
 
     # Flat drop folder for Asterism uploads; files here are moved into date subfolders on ingest
     ASTERISM_DROP = '/home/nas/Eagle/Asterism/rfo'
+
+    # SkyX destination tree; new .fits files are RICE-compressed and moved here on ingest
+    SKYX_IMAGES = '/home/nas/Eagle/SkyX/Images'
 
     # Calibration Frame Map of FITS lower(`IMAGETYP`) --> `target` name
     CFrames = {
@@ -98,7 +103,7 @@ class FitsFiles:
             record['object'] = 'No Target'
 
         # Set `target` based on calibration frame or `cname` (defaults to `object`)
-        logging.debug(">>> IMAGETYP: <{}>".format(headers['IMAGETYP'].lower()))
+        logging.debug(">>> IMAGETYP: <{}>".format(headers.get('IMAGETYP', 'MISSING').lower()))
         if ('IMAGETYP' in headers and headers['IMAGETYP'].lower() in self.CFrames.keys()):
             record['target'] = "{} {}s".format(self.CFrames[headers['IMAGETYP'].lower()], int(headers['EXPTIME']))
             record['imagetype'] = 'cal'
@@ -151,6 +156,73 @@ class FitsFiles:
         os.unlink(filename)
         logging.info("Organized {} -> {}".format(filename, dest))
         return dest
+
+    def _maybe_compress_skyx(self, filename, headers):
+        '''If filename is a SkyX .fits/.fit not yet in YYYY/MM/DD structure,
+        RICE-compress it to .fits.fz, move to YYYY/MM/DD, delete the original.
+        On compression failure, logs the error and returns filename unchanged.'''
+        abs_path = os.path.abspath(filename)
+        skyx_images = os.path.abspath(self.SKYX_IMAGES)
+        if not abs_path.startswith(skyx_images + os.sep):
+            return filename  # not under SkyX/Images
+        rel = abs_path[len(skyx_images):]
+        if re.match(r'^/\d{4}/\d{2}/\d{2}/', rel):
+            return filename  # already in YYYY/MM/DD structure
+
+        date_str = headers.get('DATE-OBS', '')[:10]
+        if len(date_str) < 10:
+            logging.error('_maybe_compress_skyx: no DATE-OBS, skipping {}'.format(filename))
+            return filename
+
+        dest_dir = date_subpath(date_str, skyx_images)
+
+        if abs_path.endswith('.fits.fz'):
+            dest = os.path.join(dest_dir, os.path.basename(abs_path))
+            shutil.copy2(abs_path, dest)
+            os.unlink(abs_path)
+            logging.info('Organized (no compression) {} -> {}'.format(abs_path, dest))
+            return dest
+
+        if abs_path.endswith('.fits'):
+            stem = os.path.basename(abs_path)[:-5]
+        else:
+            stem = os.path.basename(abs_path)[:-4]
+        dest_fz = os.path.join(dest_dir, stem + '.fits.fz')
+
+        src_dir = os.path.dirname(abs_path)
+        fd, tmp_path = tempfile.mkstemp(suffix='.fits.fz', dir=src_dir)
+        os.close(fd)
+        try:
+            with fits.open(abs_path, memmap=False, do_not_scale_image_data=True) as hdul:
+                img_hdu = next(
+                    (h for h in hdul if h.header.get('NAXIS', 0) == 2), None)
+                if img_hdu is None:
+                    raise ValueError('No 2D image HDU found')
+                original_data = img_hdu.data.copy()
+                img_header = img_hdu.header.copy()
+
+            comp = fits.CompImageHDU(
+                data=original_data, header=img_header, compression_type='RICE_1')
+            fits.HDUList([fits.PrimaryHDU(), comp]).writeto(
+                tmp_path, output_verify='silentfix', overwrite=True)
+
+            with fits.open(tmp_path, memmap=False, do_not_scale_image_data=True) as verify:
+                comp_hdu = next(
+                    (h for h in verify if isinstance(h, fits.CompImageHDU)), None)
+                if comp_hdu is None or not np.array_equal(original_data, comp_hdu.data):
+                    raise RuntimeError('Pixel verification failed after compression')
+
+            shutil.move(tmp_path, dest_fz)
+            os.unlink(abs_path)
+            logging.info('Compressed and organized {} -> {}'.format(abs_path, dest_fz))
+            return dest_fz
+
+        except Exception as exc:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+            logging.error('Compression failed for {}: {} — keeping original'.format(
+                abs_path, exc))
+            return filename
 
     def fits2png(self, record):
         '''Generate and png preview and thumbnail images; return updated database record.'''
@@ -223,9 +295,11 @@ class FitsFiles:
                 os.rename(temp_safe_fits_path, fits_path_abs)
                 logging.info(f"Restored original filename: {fits_path_abs}")
 
-            # Clean up temp files if they somehow got left behind (optional but good practice)
-            if os.path.exists(temp_safe_preview) : os.unlink(temp_safe_preview)
-            if os.path.exists(temp_safe_thumb) : os.unlink(temp_safe_thumb)
+            # Clean up temp files if they somehow got left behind
+            if temp_safe_preview and os.path.exists(temp_safe_preview):
+                os.unlink(temp_safe_preview)
+            if temp_safe_thumb and os.path.exists(temp_safe_thumb):
+                os.unlink(temp_safe_thumb)
 
 
         return record
@@ -241,6 +315,7 @@ class FitsFiles:
         if (not headers):
             return(0)
         filename = self._maybe_organize(filename, headers)
+        filename = self._maybe_compress_skyx(filename, headers)
         record = self.buildDatabaseRecord(filename, headers)
         logging.debug(">>> addFitsFile: imagetype: {}".format(record['imagetype']))
         record = self.fits2png(record)

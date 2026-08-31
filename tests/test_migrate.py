@@ -1,4 +1,4 @@
-"""Tests for date_subpath (fitsfiles) and compress_migrate (bin/)."""
+"""Tests for date_subpath (fitsfiles), compress_migrate, and nina_migrate (bin/)."""
 import logging
 import os
 import sqlite3
@@ -17,6 +17,7 @@ _bin = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'bin')
 if _bin not in sys.path:
     sys.path.insert(0, _bin)
 import compress_migrate as cm
+import nina_migrate as nm
 
 _log = logging.getLogger('test_migrate')
 
@@ -288,3 +289,194 @@ def test_year_filter_restricts_candidate_rows(tmp_path, monkeypatch):
 
     assert all('2021' in p for p in processed_paths)
     assert not any('2022' in p for p in processed_paths)
+
+
+# ===========================================================================
+# 4e — nina_migrate
+# ===========================================================================
+
+_NINA_PREFIX = '/home/nas/Eagle/NINA/Astro-Images'
+
+
+def _make_nina_db(tmp_path, src_path, preview=None, thumbnail=None):
+    """Minimal DB with one NINA row (path under NINA/Astro-Images prefix)."""
+    db_path = str(tmp_path / 'nina_test.db')
+    con = sqlite3.connect(db_path)
+    con.row_factory = sqlite3.Row
+    con.execute('''
+        CREATE TABLE fits (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            target TEXT, object TEXT, date TEXT, timestamp TEXT,
+            filter TEXT, binning TEXT, exposure REAL,
+            x INTEGER, y INTEGER,
+            path TEXT, preview TEXT, thumbnail TEXT, imagetype TEXT,
+            organization TEXT, project TEXT, observatory TEXT, observer TEXT
+        )
+    ''')
+    con.execute(
+        "INSERT INTO fits (target, object, date, timestamp, path, preview, thumbnail, imagetype)"
+        " VALUES ('M 42','NGC 1976','2025-12-18','2025-12-18T04:00:00.000',?,?,?,'tgt')",
+        (src_path, preview, thumbnail)
+    )
+    con.commit()
+    return con
+
+
+def _nina_row(con, src_path):
+    r = con.execute(
+        "SELECT id, path, date, preview, thumbnail FROM fits WHERE path = ?", (src_path,)
+    ).fetchone()
+    return dict(r)
+
+
+# ---------------------------------------------------------------------------
+# move_row — dry-run
+# ---------------------------------------------------------------------------
+
+def test_nina_dry_run_makes_no_disk_changes(tmp_path):
+    src = str(tmp_path / 'img.fits')
+    make_fits_file(src)
+    con = _make_nina_db(tmp_path, src)
+    dest_base = str(tmp_path / 'dest')
+
+    result = nm.move_row(_nina_row(con, src), dest_base, con, dry_run=True, log=_log)
+
+    assert result == 'processed'
+    assert os.path.exists(src)
+    assert not (tmp_path / 'dest').exists() or not any((tmp_path / 'dest').rglob('*.fits'))
+
+
+def test_nina_dry_run_makes_no_db_changes(tmp_path):
+    src = str(tmp_path / 'img.fits')
+    make_fits_file(src)
+    con = _make_nina_db(tmp_path, src)
+
+    nm.move_row(_nina_row(con, src), str(tmp_path / 'dest'), con, dry_run=True, log=_log)
+
+    db_path = con.execute("SELECT path FROM fits").fetchone()[0]
+    assert db_path == src
+
+
+# ---------------------------------------------------------------------------
+# move_row — missing file
+# ---------------------------------------------------------------------------
+
+def test_nina_skips_missing_file(tmp_path):
+    src = str(tmp_path / 'missing.fits')
+    con = _make_nina_db(tmp_path, src)
+
+    result = nm.move_row(_nina_row(con, src), str(tmp_path / 'dest'), con,
+                         dry_run=False, log=_log)
+    assert result == 'skipped'
+
+
+# ---------------------------------------------------------------------------
+# move_row — apply: destination in SkyX/Images tree
+# ---------------------------------------------------------------------------
+
+def test_nina_files_move_to_skyx_images(tmp_path):
+    src = str(tmp_path / 'img.fits')
+    make_fits_file(src)
+    con = _make_nina_db(tmp_path, src)
+    dest_base = str(tmp_path / 'SkyX' / 'Images')
+
+    nm.move_row(_nina_row(con, src), dest_base, con, dry_run=False, log=_log)
+
+    # File should be under SkyX/Images/YYYY/MM/DD/
+    dest_dir = tmp_path / 'SkyX' / 'Images' / '2025' / '12' / '18'
+    assert (dest_dir / 'img.fits').exists()
+    assert not os.path.exists(src)
+
+
+def test_nina_moves_preview_and_thumb(tmp_path):
+    src     = str(tmp_path / 'img.fits')
+    preview = str(tmp_path / 'img.png')
+    thumb   = str(tmp_path / 'img-thumb.png')
+    make_fits_file(src)
+    open(preview, 'wb').close()
+    open(thumb,   'wb').close()
+
+    con = _make_nina_db(tmp_path, src, preview=preview, thumbnail=thumb)
+    dest_base = str(tmp_path / 'dest')
+
+    nm.move_row(_nina_row(con, src), dest_base, con, dry_run=False, log=_log)
+
+    dest_dir = tmp_path / 'dest' / '2025' / '12' / '18'
+    assert (dest_dir / 'img.fits').exists()
+    assert (dest_dir / 'img.png').exists()
+    assert (dest_dir / 'img-thumb.png').exists()
+    assert not os.path.exists(preview)
+    assert not os.path.exists(thumb)
+
+
+def test_nina_db_updated_to_dest_path(tmp_path):
+    src = str(tmp_path / 'img.fits')
+    make_fits_file(src)
+    con = _make_nina_db(tmp_path, src)
+    row_id = _nina_row(con, src)['id']
+    dest_base = str(tmp_path / 'dest')
+
+    nm.move_row(_nina_row(con, src), dest_base, con, dry_run=False, log=_log)
+
+    new_path = con.execute("SELECT path FROM fits WHERE id=?", (row_id,)).fetchone()[0]
+    assert 'NINA' not in new_path
+    assert os.path.exists(new_path)
+
+
+def test_nina_original_deleted_after_db_commit(tmp_path):
+    src = str(tmp_path / 'img.fits')
+    make_fits_file(src)
+    con = _make_nina_db(tmp_path, src)
+
+    nm.move_row(_nina_row(con, src), str(tmp_path / 'dest'), con,
+                dry_run=False, log=_log)
+
+    assert not os.path.exists(src)
+
+
+# ---------------------------------------------------------------------------
+# main() — maintenance flag and --pilot-date
+# ---------------------------------------------------------------------------
+
+def test_nina_refuses_apply_without_maintenance_flag(tmp_path, monkeypatch):
+    flag = str(tmp_path / 'MAINTENANCE')
+    monkeypatch.setenv('IMAGELIB_MAINTENANCE', flag)
+    monkeypatch.setenv('FITSDB_FILE', str(tmp_path / 'dummy.db'))
+    monkeypatch.setattr(sys, 'argv', ['nina_migrate', '--apply'])
+
+    with pytest.raises(SystemExit) as exc:
+        nm.main()
+    assert exc.value.code != 0
+
+
+def test_nina_pilot_date_filter(tmp_path, monkeypatch):
+    db_path = str(tmp_path / 'test.db')
+    con = sqlite3.connect(db_path)
+    con.execute('''CREATE TABLE fits (id INTEGER PRIMARY KEY, target TEXT,
+        object TEXT, date TEXT, timestamp TEXT, filter TEXT, binning TEXT,
+        exposure REAL, x INTEGER, y INTEGER, path TEXT UNIQUE, preview TEXT,
+        thumbnail TEXT, imagetype TEXT, organization TEXT, project TEXT,
+        observatory TEXT, observer TEXT)''')
+    for date in ('2025-12-18', '2025-12-19'):
+        con.execute(
+            "INSERT INTO fits (target, object, date, timestamp, path, imagetype)"
+            " VALUES ('M 42','NGC 1976',?,?,?,'tgt')",
+            (date, date + 'T04:00:00.000',
+             '/home/nas/Eagle/NINA/Astro-Images/img_{}.fits'.format(date))
+        )
+    con.commit()
+    con.close()
+
+    monkeypatch.setenv('FITSDB_FILE', db_path)
+    monkeypatch.setattr(sys, 'argv', ['nina_migrate', '--pilot-date', '2025-12-18'])
+
+    processed_paths = []
+
+    def fake_move(row, *a, **kw):
+        processed_paths.append(row['date'])
+        return 'skipped'
+
+    with patch('nina_migrate.move_row', side_effect=fake_move):
+        nm.main()
+
+    assert processed_paths == ['2025-12-18']
