@@ -178,6 +178,10 @@ class FitsFiles:
 
         if abs_path.endswith('.fits.fz'):
             dest = os.path.join(dest_dir, os.path.basename(abs_path))
+            if os.path.exists(dest):
+                os.unlink(abs_path)
+                logging.info('Already organized, deleted duplicate: {}'.format(abs_path))
+                return dest
             shutil.copy2(abs_path, dest)
             os.unlink(abs_path)
             logging.info('Organized (no compression) {} -> {}'.format(abs_path, dest))
@@ -188,6 +192,12 @@ class FitsFiles:
         else:
             stem = os.path.basename(abs_path)[:-4]
         dest_fz = os.path.join(dest_dir, stem + '.fits.fz')
+
+        # If a compressed copy already exists (re-synced historical file), just delete the incoming duplicate.
+        if os.path.exists(dest_fz):
+            os.unlink(abs_path)
+            logging.info('Already compressed, deleted duplicate: {}'.format(abs_path))
+            return dest_fz
 
         src_dir = os.path.dirname(abs_path)
         fd, tmp_path = tempfile.mkstemp(suffix='.fits.fz', dir=src_dir)
