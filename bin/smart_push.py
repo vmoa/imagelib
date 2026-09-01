@@ -33,6 +33,11 @@ Usage:
   python3 smart_push.py [--apply]
   python3 smart_push.py --bootstrap FILE
 
+To run a catch-up sync starting from a specific date (e.g. after an outage):
+  touch -t YYMMDDhhmm /tmp/tsfile
+  SMART_PUSH_TS=/tmp/tsfile python3 smart_push.py --apply
+  (The 'sent' table in the manifest prevents re-sending files already pushed.)
+
 Bootstrap FILE is one DATE-OBS value per line, exported from imagelib:
   sqlite3 /home/nas/data/fits.db \\
     "SELECT timestamp FROM fits WHERE path LIKE '%%SkyX%%'" > bootstrap.txt
