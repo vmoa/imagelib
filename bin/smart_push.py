@@ -11,16 +11,23 @@ Handles .fits, .fit, and .fits.fz files identically. When SkyX or NINA is
 reconfigured to write .fits.fz directly, no changes to this script are needed.
 
 Configuration (set via environment variables):
-  SMART_PUSH_R_DRIVE  R_Drive SkyX/Images mount path    [/nas/R_Drive/Eagle/SkyX/Images]
-  SMART_PUSH_HOST     rsync destination host/user        [required -- e.g. nas@54.148.172.109]
-  SMART_PUSH_DEST     SkyX/Images path on imagelib       [/home/nas/Eagle/SkyX/Images]
-  SMART_PUSH_DB       manifest SQLite DB path            [/home/nas/var/smart_push/manifest.db]
-  SMART_PUSH_TS       timestamp file path                [/home/nas/var/smart_push/last_run.ts]
+  SMART_PUSH_R_DRIVE    R_Drive SkyX/Images mount path    [/nas/R_Drive/Eagle/SkyX/Images]
+  SMART_PUSH_HOST       rsync destination host/user        [required -- e.g. nas@54.148.172.109]
+  SMART_PUSH_DEST       SkyX/Images path on imagelib       [/home/nas/Eagle/SkyX/Images]
+  SMART_PUSH_DB         manifest SQLite DB path            [/home/nas/var/smart_push/manifest.db]
+  SMART_PUSH_TS         timestamp file path                [/home/nas/var/smart_push/last_run.ts]
+  SMART_PUSH_QUARANTINE quarantine dir for files with no DATE-OBS header
+                        [sibling of SkyX/Images: .../SkyX/_no_date_obs]
 
 Directories excluded from sync (SkyX telescope calibration artifacts):
   "Closed Loop Slews", "Automated Pointing Run*"
 These are purged from R_Drive at the start of each run (before find -newer),
 mirroring sync_to_aws step 1. The find call also excludes them as a safety net.
+
+Files with no DATE-OBS header are moved to QUARANTINE_DIR rather than left in
+place. This prevents them from causing repeated errors on every subsequent run
+(since a file left on R_Drive would be returned by find -newer tsfile each time
+the tsfile fails to advance due to errors).
 
 Usage:
   python3 smart_push.py [--apply]
@@ -53,6 +60,13 @@ IMAGELIB_HOST = os.environ.get('SMART_PUSH_HOST',   '')
 IMAGELIB_DEST = os.environ.get('SMART_PUSH_DEST',   '/home/nas/Eagle/SkyX/Images')
 MANIFEST_DB   = os.environ.get('SMART_PUSH_DB',     '/home/nas/var/smart_push/manifest.db')
 TSFILE        = os.environ.get('SMART_PUSH_TS',     '/home/nas/var/smart_push/last_run.ts')
+
+# Sibling of R_DRIVE_BASE so it is never picked up by find_candidates.
+# e.g. /nas/R_Drive/Eagle/SkyX/_no_date_obs
+QUARANTINE_DIR = os.environ.get(
+    'SMART_PUSH_QUARANTINE',
+    os.path.join(os.path.dirname(R_DRIVE_BASE), '_no_date_obs'),
+)
 
 FILE_PATTERNS = ['*.fits', '*.fit', '*.fits.fz']
 
@@ -178,6 +192,40 @@ def cleanup_cal_dirs(r_drive_base, log, dry_run):
     return removed, errors
 
 # ---------------------------------------------------------------------------
+# Quarantine (no DATE-OBS)
+# ---------------------------------------------------------------------------
+
+def quarantine_file(path, log, dry_run):
+    """Move a FITS file that has no DATE-OBS header to QUARANTINE_DIR.
+
+    Returns True if the file was quarantined (or dry_run), False if the move
+    failed and the file was left in place.
+
+    Placing the file outside R_DRIVE_BASE ensures it is never returned by
+    find_candidates on subsequent runs. If a file with the same name already
+    exists in the quarantine dir, a timestamp prefix is added to avoid
+    overwriting.
+    """
+    basename = os.path.basename(path)
+    dest = os.path.join(QUARANTINE_DIR, basename)
+    if os.path.exists(dest):
+        ts = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        dest = os.path.join(QUARANTINE_DIR, '{}_{}'.format(ts, basename))
+
+    if dry_run:
+        log.warning('[DRY-RUN] No DATE-OBS — would quarantine: %s -> %s', path, dest)
+        return True
+
+    try:
+        os.makedirs(QUARANTINE_DIR, exist_ok=True)
+        shutil.move(path, dest)
+        log.warning('No DATE-OBS — quarantined: %s -> %s', path, dest)
+        return True
+    except Exception as exc:
+        log.error('No DATE-OBS and quarantine failed for %s: %s', path, exc)
+        return False
+
+# ---------------------------------------------------------------------------
 # Transfer
 # ---------------------------------------------------------------------------
 
@@ -274,8 +322,8 @@ def main():
     for path in candidates:
         date_obs = read_date_obs(path)
         if date_obs is None:
-            log.warning('No DATE-OBS, skipping: %s', path)
-            errors += 1
+            if not quarantine_file(path, log, dry_run):
+                errors += 1  # move failed; file stays and will be retried
             continue
 
         if is_known(con, date_obs):

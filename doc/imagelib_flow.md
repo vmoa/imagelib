@@ -298,6 +298,8 @@ re-compressing, with the re-sync duplicate guard).
 
 | Failure | Effect | Recovery |
 |---|---|---|
+| File has no DATE-OBS header | Moved to `SkyX/_no_date_obs/` on R_Drive; not synced | Inspect file; fix header; move back to a date directory |
+| Quarantine move fails | File left on R_Drive; counted as error; tsfile not updated | Fix filesystem permissions on `_no_date_obs/`; next run retries |
 | rsync fails for one file | Not inserted into `sent`; retried next cron run | Automatic |
 | rfovpn crashes mid-run | Partial `sent` entries for completed files only | Automatic (next run retries missing files) |
 | tsfile lost | Next run walks all of R_Drive once; `sent` table prevents re-pushing | Automatic (slow one-time run) |

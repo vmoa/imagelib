@@ -351,3 +351,66 @@ def test_cleanup_leaves_normal_date_dirs(tmp_path):
 
     assert removed == 0
     assert os.path.exists(normal_dir)
+
+
+# ---------------------------------------------------------------------------
+# quarantine_file
+# ---------------------------------------------------------------------------
+
+def test_quarantine_moves_file(tmp_path, fits_file):
+    import logging
+    log = logging.getLogger('test')
+    quarantine = str(tmp_path / '_no_date_obs')
+
+    with patch.object(sp, 'QUARANTINE_DIR', quarantine):
+        result = sp.quarantine_file(fits_file, log, dry_run=False)
+
+    assert result is True
+    assert not os.path.exists(fits_file)
+    assert os.path.exists(os.path.join(quarantine, os.path.basename(fits_file)))
+
+
+def test_quarantine_dry_run_does_not_move(tmp_path, fits_file):
+    import logging
+    log = logging.getLogger('test')
+    quarantine = str(tmp_path / '_no_date_obs')
+
+    with patch.object(sp, 'QUARANTINE_DIR', quarantine):
+        result = sp.quarantine_file(fits_file, log, dry_run=True)
+
+    assert result is True
+    assert os.path.exists(fits_file)
+    assert not os.path.exists(quarantine)
+
+
+def test_quarantine_adds_timestamp_on_name_collision(tmp_path, fits_file):
+    import logging
+    log = logging.getLogger('test')
+    quarantine = str(tmp_path / '_no_date_obs')
+    os.makedirs(quarantine)
+    # Pre-place a file with the same name in quarantine
+    existing = os.path.join(quarantine, os.path.basename(fits_file))
+    open(existing, 'w').close()
+
+    with patch.object(sp, 'QUARANTINE_DIR', quarantine):
+        result = sp.quarantine_file(fits_file, log, dry_run=False)
+
+    assert result is True
+    # Original collision file still exists; new file has timestamp prefix
+    files = os.listdir(quarantine)
+    assert len(files) == 2
+    assert any('_' in f and f != os.path.basename(fits_file) for f in files)
+
+
+def test_quarantine_returns_false_on_move_failure(tmp_path, fits_file):
+    import logging
+    log = logging.getLogger('test')
+    # Point quarantine at a path we cannot create (read-only parent)
+    quarantine = '/nonexistent/deeply/nested/_no_date_obs'
+
+    with patch.object(sp, 'QUARANTINE_DIR', quarantine):
+        with patch('smart_push.os.makedirs', side_effect=OSError('permission denied')):
+            result = sp.quarantine_file(fits_file, log, dry_run=False)
+
+    assert result is False
+    assert os.path.exists(fits_file)  # file left in place on failure
