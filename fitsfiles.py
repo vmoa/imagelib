@@ -181,10 +181,15 @@ class FitsFiles:
             if os.path.exists(dest):
                 os.unlink(abs_path)
                 logging.info('Already organized, deleted duplicate: {}'.format(abs_path))
-                return dest
-            shutil.copy2(abs_path, dest)
-            os.unlink(abs_path)
-            logging.info('Organized (no compression) {} -> {}'.format(abs_path, dest))
+            else:
+                shutil.copy2(abs_path, dest)
+                os.unlink(abs_path)
+                logging.info('Organized (no compression) {} -> {}'.format(abs_path, dest))
+            try:
+                os.rmdir(os.path.dirname(abs_path))
+                logging.info('Removed empty directory: {}'.format(os.path.dirname(abs_path)))
+            except OSError:
+                pass
             return dest
 
         if abs_path.endswith('.fits'):
@@ -197,6 +202,11 @@ class FitsFiles:
         if os.path.exists(dest_fz):
             os.unlink(abs_path)
             logging.info('Already compressed, deleted duplicate: {}'.format(abs_path))
+            try:
+                os.rmdir(os.path.dirname(abs_path))
+                logging.info('Removed empty directory: {}'.format(os.path.dirname(abs_path)))
+            except OSError:
+                pass
             return dest_fz
 
         src_dir = os.path.dirname(abs_path)
@@ -225,6 +235,11 @@ class FitsFiles:
             shutil.move(tmp_path, dest_fz)
             os.unlink(abs_path)
             logging.info('Compressed and organized {} -> {}'.format(abs_path, dest_fz))
+            try:
+                os.rmdir(src_dir)
+                logging.info('Removed empty directory: {}'.format(src_dir))
+            except OSError:
+                pass
             return dest_fz
 
         except Exception as exc:
