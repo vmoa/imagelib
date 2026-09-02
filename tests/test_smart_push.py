@@ -230,7 +230,7 @@ def test_rsync_file_apply_calls_rsync(tmp_path, fits_file):
     assert result is True
     args = mock_run.call_args[0][0]
     assert args[0] == 'rsync'
-    assert '--mkpath' in args
+    assert '--rsync-path' in args
     assert fits_file in args
 
 
