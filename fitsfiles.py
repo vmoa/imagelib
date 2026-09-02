@@ -380,8 +380,10 @@ class FitsFiles:
             if filename:
                 count += self.addFitsFile(filename, fitsdb)
 
-        # Update the timestamp with our start time, but only if successful
-        if (count > 0):
+        # Update the timestamp with our start time whenever find succeeded.
+        # Advancing tsfile even on count=0 prevents re-scanning files that were
+        # found but skipped (e.g. UNIQUE constraint on already-ingested paths).
+        if result.returncode == 0:
             timestamp = start_time.strftime("%Y%m%d%H%M.%S")  # [[CC]YY]MMDDhhmm[.ss]
             subprocess.run(['touch', '-t', timestamp, fitsdb.tsfile])
 

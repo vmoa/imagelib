@@ -42,7 +42,7 @@ Bootstrap FILE is one DATE-OBS value per line, exported from imagelib:
   sqlite3 /home/nas/data/fits.db \\
     "SELECT timestamp FROM fits WHERE path LIKE '%%SkyX%%'" > bootstrap.txt
 
-Requirements: rsync >= 3.2.3 (for --mkpath), astropy
+Requirements: rsync (any recent version), astropy
 """
 
 import argparse
@@ -237,11 +237,14 @@ def quarantine_file(path, log, dry_run):
 def rsync_file(src_path, r_drive_base, imagelib_host, imagelib_dest, log, dry_run):
     """rsync one file to imagelib, preserving its relative directory structure.
 
-    Requires rsync >= 3.2.3 for --mkpath to create the destination directory.
+    Uses --rsync-path to mkdir -p the destination directory before transferring,
+    which works with any rsync version (avoids the --mkpath requirement of 3.2.3).
     """
     rel_path = os.path.relpath(src_path, r_drive_base)
+    dest_dir = '{}/{}'.format(imagelib_dest, os.path.dirname(rel_path))
     dest = '{}:{}/{}'.format(imagelib_host, imagelib_dest, rel_path)
-    cmd = ['rsync', '-az', '--mkpath', src_path, dest]
+    rsync_path = "mkdir -p '{}' && rsync".format(dest_dir)
+    cmd = ['rsync', '-az', '-s', '--rsync-path', rsync_path, src_path, dest]
     if dry_run:
         log.info('[DRY-RUN] would rsync: %s -> %s', rel_path, dest)
         return True

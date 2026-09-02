@@ -28,10 +28,10 @@ flowchart LR
     RD -- "mounted" --> RFOVPN["rfovpn"]
     RFOVPN -- "smart_push.py: purge cal dirs" --> RD
     RFOVPN -- "smart_push.py: rsync new files hourly :30" --> IMG["imagelib (EC2)"]
-    IMG -- "fitsfiles.py hourly :00" --> DB[("fits.db")]
+    IMG -- "fitsfiles.py every 5 min (flock)" --> DB[("fits.db")]
 ```
 
-smart_push.py runs as a single hourly job: it first purges calibration dirs from R_Drive, then scans for new files. This matches the ordering in sync_to_aws (purge before rsync). The SSH trigger is eliminated; fitsfiles.py runs on its own hourly cron.
+smart_push.py runs as a single hourly job: it first purges calibration dirs from R_Drive, then scans for new files. This matches the ordering in sync_to_aws (purge before rsync). The SSH trigger is eliminated; fitsfiles.py runs on its own every-5-minute cron on imagelib, guarded by `flock -n` to prevent overlapping runs.
 
 ---
 
@@ -181,14 +181,23 @@ one eliminated step:
 |---|---|
 | Purge calibration dirs from R_Drive | `bin/smart_push.py` step 1 (before each scan) |
 | Sync FITS files to imagelib | `bin/smart_push.py` step 2 (manifest-driven rsync) |
-| SSH trigger for fitsfiles.py | **Eliminated** — fitsfiles.py runs on its own hourly cron on imagelib |
+| SSH trigger for fitsfiles.py | **Eliminated** — fitsfiles.py runs on its own every-5-min cron on imagelib, guarded by `flock -n` to prevent overlap |
 
-### rfovpn crontab (proposed)
+### Crontabs (proposed)
 
+**rfovpn** — syncs new files to imagelib:
 ```cron
 # Sync new SkyX FITS files to imagelib — also purges cal dirs before each scan
 30 * * * * SMART_PUSH_HOST=nas@54.148.172.109 python3 /usr/local/bin/smart_push.py --apply >> /tmp/smart_push.out 2>&1
 ```
+
+**imagelib** — ingests files into the database:
+```cron
+# Ingest new FITS files; flock -n skips if previous run is still active
+*/5 * * * * flock -n /var/lock/fitsfiles.lock -c 'cd /home/nas/flask/imagelib && python3 fitsfiles.py >> /tmp/fitsfiles.out 2>&1'
+```
+
+`flock -n` is non-blocking: if a prior run holds the lock, the new invocation exits immediately without queuing. This keeps cron from stacking up during a large backlog run. Worst-case latency between a file landing on imagelib and appearing in the DB is 5 minutes (if files arrive just after a fitsfiles.py run completes).
 
 ### smart_push.py — why rsync was wrong
 

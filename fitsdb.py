@@ -48,7 +48,7 @@ class Fitsdb:
             cur.execute(sql, vals)
             self.con.commit()
         except sqlite3.Error as er:
-            print('WARNING: ' + ' '.join(er.args))
+            print('WARNING: {} path={}'.format(' '.join(er.args), image.get('path', 'unknown')))
             return(0)
 
         return(1)
