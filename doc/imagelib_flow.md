@@ -27,11 +27,11 @@ flowchart LR
     PC["Eagle PC (SkyX)"] -- "writes FITS" --> RD["R_Drive"]
     RD -- "mounted" --> RFOVPN["rfovpn"]
     RFOVPN -- "smart_push.py: purge cal dirs" --> RD
-    RFOVPN -- "smart_push.py: rsync new files hourly :30" --> IMG["imagelib (EC2)"]
+    RFOVPN -- "smart_push.py: rsync new files every 15 min (flock)" --> IMG["imagelib (EC2)"]
     IMG -- "fitsfiles.py every 5 min (flock)" --> DB[("fits.db")]
 ```
 
-smart_push.py runs as a single hourly job: it first purges calibration dirs from R_Drive, then scans for new files. This matches the ordering in sync_to_aws (purge before rsync). The SSH trigger is eliminated; fitsfiles.py runs on its own every-5-minute cron on imagelib, guarded by `flock -n` to prevent overlapping runs.
+smart_push.py runs every 15 minutes, guarded by `flock -n` to prevent overlapping runs: it first purges calibration dirs from R_Drive, then scans for new files. This matches the ordering in sync_to_aws (purge before rsync). The SSH trigger is eliminated; fitsfiles.py runs on its own every-5-minute cron on imagelib, also guarded by `flock -n`.
 
 ---
 
@@ -187,8 +187,8 @@ one eliminated step:
 
 **rfovpn** — syncs new files to imagelib:
 ```cron
-# Sync new SkyX FITS files to imagelib — also purges cal dirs before each scan
-30 * * * * SMART_PUSH_HOST=nas@54.148.172.109 python3 /usr/local/bin/smart_push.py --apply >> /tmp/smart_push.out 2>&1
+# Sync new SkyX FITS files to imagelib — flock -n skips if previous run is still active
+*/15 * * * * flock -n /tmp/smart_push.lock -c '{ echo "--- $(date -Is) ---"; SMART_PUSH_HOST=nas@54.148.172.109 python3 /usr/local/bin/smart_push.py --apply; } >> /tmp/smart_push.out 2>&1'
 ```
 
 **imagelib** — ingests files into the database:
