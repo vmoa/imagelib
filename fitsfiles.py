@@ -13,8 +13,11 @@ import shutil
 import subprocess   # Use subprocess for safer command execution
 import tempfile
 
+import warnings
+
 import numpy as np
 from astropy.io import fits
+from astropy.utils.exceptions import AstropyWarning
 
 import catalog
 import fitsdb
@@ -67,18 +70,29 @@ class FitsFiles:
 
     def parseFitsHeader(self, filename):
         '''Parse the salient bits out of the FITS file header.'''
-        with fits.open(filename) as fitsfile:
-            # Find our first HDU with a 2-axis image (see https://docs.astropy.org/en/stable/io/fits/)
-            i = 0
-            for hdu in fitsfile:
-                if (hdu.header['NAXIS'] == 2):
-                    break
-                i += 1
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            with fits.open(filename) as fitsfile:
+                # Find our first HDU with a 2-axis image (see https://docs.astropy.org/en/stable/io/fits/)
+                i = 0
+                for hdu in fitsfile:
+                    if (hdu.header['NAXIS'] == 2):
+                        break
+                    i += 1
 
-            headers = dict()
-            for hdr in 'NAXIS1', 'NAXIS2', 'EXPTIME', 'IMAGETYP', 'XBINNING', 'YBINNING', 'OBJCTRA', 'OBJCTDEC', 'FILTER', 'OBJECT', 'DATE-OBS', 'SSPROJ', 'INSTABBR', 'OBSERVAT', 'OBSERVER':
-                if hdr in list(hdu.header.keys()):
-                    headers[hdr] = hdu.header[hdr]
+                headers = dict()
+                for hdr in 'NAXIS1', 'NAXIS2', 'EXPTIME', 'IMAGETYP', 'XBINNING', 'YBINNING', 'OBJCTRA', 'OBJCTDEC', 'FILTER', 'OBJECT', 'DATE-OBS', 'SSPROJ', 'INSTABBR', 'OBSERVAT', 'OBSERVER':
+                    if hdr in list(hdu.header.keys()):
+                        headers[hdr] = hdu.header[hdr]
+
+        # Skip files that astropy flagged as truncated — likely still mid-transfer.
+        # Return None so addFitsFile skips the DB insert; the file is retried next
+        # run once the transfer completes and the mtime changes.
+        for w in caught:
+            if issubclass(w.category, AstropyWarning) and 'truncated' in str(w.message).lower():
+                logging.warning('Skipping %s: file appears truncated (%d bytes), will retry next run',
+                                filename, os.path.getsize(filename))
+                return None
 
         # Clean up headers
         if ('OBJECT' in headers):
