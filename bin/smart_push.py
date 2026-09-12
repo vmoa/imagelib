@@ -244,7 +244,7 @@ def rsync_file(src_path, r_drive_base, imagelib_host, imagelib_dest, log, dry_ru
     dest_dir = '{}/{}'.format(imagelib_dest, os.path.dirname(rel_path))
     dest = '{}:{}/{}'.format(imagelib_host, imagelib_dest, rel_path)
     rsync_path = "mkdir -p '{}' && rsync".format(dest_dir)
-    cmd = ['rsync', '-az', '-s', '--rsync-path', rsync_path, src_path, dest]
+    cmd = ['rsync', '-az', '--no-times', '-s', '--rsync-path', rsync_path, src_path, dest]
     if dry_run:
         log.info('[DRY-RUN] would rsync: %s -> %s', rel_path, dest)
         return True
