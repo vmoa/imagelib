@@ -26,7 +26,7 @@ def date_subpath(date_str, base_dir):
     """Build and create base_dir/YYYY/MM/DD from a YYYY-MM-DD date string."""
     year, month, day = date_str[:10].split('-')
     path = os.path.join(base_dir, year, month, day)
-    os.makedirs(path, exist_ok=True)
+    os.makedirs(path, mode=0o755, exist_ok=True)
     return path
 
 
@@ -197,6 +197,7 @@ class FitsFiles:
                 logging.info('Already organized, deleted duplicate: {}'.format(abs_path))
             else:
                 shutil.copy2(abs_path, dest)
+                os.chmod(dest, 0o644)
                 os.unlink(abs_path)
                 logging.info('Organized (no compression) {} -> {}'.format(abs_path, dest))
             try:
@@ -246,6 +247,7 @@ class FitsFiles:
                 if comp_hdu is None or not np.array_equal(original_data, comp_hdu.data):
                     raise RuntimeError('Pixel verification failed after compression')
 
+            os.chmod(tmp_path, 0o644)
             shutil.move(tmp_path, dest_fz)
             os.unlink(abs_path)
             logging.info('Compressed and organized {} -> {}'.format(abs_path, dest_fz))
