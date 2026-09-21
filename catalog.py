@@ -13,6 +13,7 @@ import sqlite3
 import sys
 
 import fitsdb
+from normalize import normalize_target
 
 # Original thoughts on CNAME
 #               (1) the Messier number (based on finding `object` in the SAC catalog)
@@ -44,6 +45,7 @@ class Catalog:
     @classmethod
     def cname(cls, object):
         '''Return the canonical name for `object`.'''
+        object = normalize_target(object)
         logging.debug(">>> cname({})".format(object))
         if cls.db is None:
             cls.db = fitsdb.Fitsdb()
